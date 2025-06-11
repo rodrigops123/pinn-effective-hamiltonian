@@ -1,0 +1,5 @@
+torchvision
+numpy
+qutip
+matplotlib
+tqdm
