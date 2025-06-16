@@ -91,11 +91,11 @@ def train(epochs, params, tfinal, n_time_steps, picture, n_points_loss=None):
         nn_state_real = model_real(time_train)
         nn_state_imag = model_imag(time_train)
         nn_state = nn_state_real + 1j * nn_state_imag
-
+        
         # Compute losses
         loss_ic_value = loss_ic(nn_state, sim_state_train)
         loss_norm_value = loss_norm(nn_state)
-        loss_data_value, _ = loss_data(
+        loss_data_value = loss_data(
             nn_state, operator, sim_expect_train, n_points=n_points_loss
         )
         loss_ode_value = loss_ode(hamiltonian, nn_state, time_train)
@@ -171,7 +171,7 @@ def train_with_parameter(epochs, params, tfinal, n_time_steps, picture, n_points
         # Compute losses
         loss_ic_value = loss_ic(nn_state, sim_state_train)
         loss_norm_value = loss_norm(nn_state)
-        loss_data_value, _ = loss_data(
+        loss_data_value = loss_data(
             nn_state, operator, sim_expect_train, n_points=n_points_loss
         )
         loss_ode_value = loss_ode(hamiltonian, nn_state, time_train)

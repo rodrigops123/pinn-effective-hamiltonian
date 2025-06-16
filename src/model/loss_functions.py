@@ -11,20 +11,9 @@ import qutip
 from utils import msa
 from config import global_variables
 
-a = torch.tensor(
-    qutip.tensor(
-        qutip.destroy(global_variables.ATOM_DIM), qutip.qeye(global_variables.FIELD_DIM)
-    ).full(),
-    dtype=torch.complex64,
-)
 
-sm = torch.tensor(
-    qutip.tensor(
-        qutip.qeye(global_variables.ATOM_DIM), qutip.destroy(global_variables.FIELD_DIM)
-    ).full(),
-    dtype=torch.complex64,
-)
-
+a = torch.tensor(global_variables.a.full(), dtype=torch.complex64)
+sm = torch.tensor(global_variables.sm.full(), dtype=torch.complex64)
 a_dag = a.T.conj()
 sm_dag = sm.T.conj()
 
@@ -92,7 +81,7 @@ def loss_data(nn_state, operators, sim_expect, n_points=None):
     )  # (n_points, n_observables)
 
     loss = msa(expected_values_nn, selected_sim)
-    return loss, indices
+    return loss
 
 
 def loss_ode(H_, nn_state, tempo):
