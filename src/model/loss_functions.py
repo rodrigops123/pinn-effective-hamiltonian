@@ -6,7 +6,6 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 import torch
-import qutip
 
 from utils import msa
 from config import global_variables
@@ -112,6 +111,6 @@ def loss_ode(H_, nn_state, tempo):
 
         drho_dt = drho_dt_real + 1j * drho_dt_imag
 
-        loss += torch.mean(abs(drho_dt + H_psi[:, i].reshape((n_time_steps, 1)))) ** 2
+        loss += torch.mean( abs( drho_dt + H_psi[:, i].reshape((n_time_steps, 1)) ) ) ** 2
 
     return loss

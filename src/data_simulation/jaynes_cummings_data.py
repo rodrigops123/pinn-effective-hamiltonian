@@ -66,10 +66,19 @@ def data_jc(
     tlist = np.linspace(0, tfinal, n_time_steps)
 
     # Initial state (base state)
-    psi0 = qutip.tensor(
+    psi0a = qutip.tensor(
+        (qutip.basis(global_variables.FIELD_DIM, 0) + qutip.basis(global_variables.FIELD_DIM, 1)),
         qutip.basis(global_variables.FIELD_DIM, 0),
-        qutip.basis(global_variables.FIELD_DIM, 1),
     )
+    
+    # psi0b = qutip.tensor(
+    #     qutip.basis(global_variables.FIELD_DIM, 1),
+    #     qutip.basis(global_variables.FIELD_DIM, 0),
+    # )
+    
+    psi0 = psi0a.unit()
+    
+    # psi0 = (psi0a + psi0b).unit()
 
     # Defining the operators
     field_op = global_variables.a.dag() * global_variables.a
