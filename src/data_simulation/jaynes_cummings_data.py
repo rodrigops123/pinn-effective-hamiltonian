@@ -10,10 +10,47 @@ import torch
 import qutip
 from typing import Union
 
-from config import global_variables
+
+def choose_init_state(init_state: str, dims: dict) -> qutip.Qobj:
+    # - estado de fock -> schrodinger
+    # - superposição de fock -> schrodinger
+
+    if init_state == "fock_superposition":
+        if dims["field"] == 2:
+            psi0a = qutip.tensor(
+                qutip.basis(dims["atom"], 0),
+                (qutip.basis(dims["field"], 0) + qutip.basis(dims["field"], 1)),
+            )
+            psi0 = psi0a.unit()
+
+        elif dims["field"] == 3:
+            psi0a = qutip.tensor(
+                qutip.basis(dims["atom"], 0),
+                (
+                    qutip.basis(dims["field"], 0)
+                    + qutip.basis(dims["field"], 1)
+                    + qutip.basis(dims["field"], 2)
+                ),
+            )
+            psi0 = psi0a.unit()
+
+    if init_state == "fock":
+        psi0a = qutip.tensor(
+            qutip.basis(dims["atom"], 0), qutip.basis(dims["field"], 1)
+        )
+        psi0 = psi0a.unit()
+        
+    if init_state == "coherent":
+        alpha = 1.0
+        psi0a = qutip.tensor(
+            qutip.basis(dims["atom"], 0), qutip.coherent(dims["field"], alpha)
+        )
+        psi0 = psi0a.unit()
+
+    return psi0
 
 
-def chooses_hamiltonian(picture: str, params: list[float]) -> qutip.Qobj:
+def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
     """
     Chooses the Hamiltonian based on the specified picture.
 
@@ -25,27 +62,38 @@ def chooses_hamiltonian(picture: str, params: list[float]) -> qutip.Qobj:
         str: The chosen Hamiltonian.
     """
     if picture == "interaction":
-        hamiltonian = params[-1] * (
-            global_variables.a.dag() * global_variables.sm
-            + global_variables.a * global_variables.sm.dag()
-        )
+        a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
+        sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+
+        hamiltonian = params["g"] * (a.dag() * sm + a * sm.dag())
 
     if picture == "atom":
-        hamiltonian = abs(
-            params[0] - params[1]
-        ) / 2 * global_variables.a.dag() * global_variables.a + params[-1] * (
-            global_variables.a.dag() * global_variables.sm
-            + global_variables.a * global_variables.sm.dag()
+        a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
+        sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+
+        hamiltonian = 0.5 * abs(params["wc"] - params["wa"]) * a.dag() * a + params["g"] * (a.dag() * sm + a * sm.dag())
+
+    if picture == "full":
+        a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
+        sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+        sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
+
+        hamiltonian = (
+            params["wc"] * a.dag() * a
+            + 0.5 * params["wa"] * sz
+            + params["g"] * (a.dag() * sm + a * sm.dag())
         )
 
     return hamiltonian
 
 
 def data_jc(
-    params: list[float],
+    params: dict,
     tfinal: Union[float, int],
     n_time_steps: int,
+    init_state: str,
     picture: str = "interaction",
+    dims: dict[str, int] = {"atom": 2, "field": 2},
 ):
     """
     Generates data for the Jaynes-Cummings model based on the provided parameters.
@@ -65,29 +113,19 @@ def data_jc(
     # time vector
     tlist = np.linspace(0, tfinal, n_time_steps)
 
-    # Initial state (base state)
-    psi0a = qutip.tensor(
-        (qutip.basis(global_variables.FIELD_DIM, 0) + qutip.basis(global_variables.FIELD_DIM, 1)),
-        qutip.basis(global_variables.FIELD_DIM, 0),
-    )
-    
-    # psi0b = qutip.tensor(
-    #     qutip.basis(global_variables.FIELD_DIM, 1),
-    #     qutip.basis(global_variables.FIELD_DIM, 0),
-    # )
-    
-    psi0 = psi0a.unit()
-    
-    # psi0 = (psi0a + psi0b).unit()
+    a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
+    sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
 
     # Defining the operators
-    field_op = global_variables.a.dag() * global_variables.a
-    atom_op = global_variables.sm.dag() * global_variables.sm
+    field_op = a.dag() * a
+    atom_op = sm.dag() * sm
 
     operators_list = [field_op, atom_op]
 
     # Chosen Hamiltonian
-    hamiltonian = chooses_hamiltonian(picture, params)
+    hamiltonian = chooses_hamiltonian(picture, params, dims)
+
+    psi0 = choose_init_state(init_state, dims)
 
     options = qutip.Options(store_states=True)
     result = qutip.sesolve(

@@ -1,11 +1,11 @@
 import torch
-
+import torch.nn as nn
 
 def mse(y_pred, y_true):
     return torch.mean((y_pred - y_true) ** 2)
 
 
-def msa(y_pred, y_true):
+def mae(y_pred, y_true):
     return torch.mean(abs(y_pred - y_true))
 
 
@@ -23,3 +23,19 @@ def commutator(A, B):
 
 def dagger(A):
     return torch.conj(A.T)
+
+
+class SIN(nn.Module):
+    def __init__(self):
+        super(SIN, self).__init__()
+
+    def forward(self, x):
+        return torch.sin(x)
+
+
+class TANH(nn.Module):
+    def __init__(self):
+        super(TANH, self).__init__()
+
+    def forward(self, x):
+        return torch.tanh(x)

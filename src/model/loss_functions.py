@@ -6,42 +6,49 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 import torch
+import qutip
 
-from utils import msa
+from utils import mae
 from config import global_variables
 
 
-a = torch.tensor(global_variables.a.full(), dtype=torch.complex64)
-sm = torch.tensor(global_variables.sm.full(), dtype=torch.complex64)
-a_dag = a.T.conj()
-sm_dag = sm.T.conj()
-
-
 def hamiltonian_with_params(
-    picture: str, params: list, coupling_strength: float
+    picture: str, params: dict, coupling_strength: float, dims: dict
 ) -> torch.Tensor:
     """
     Returns the Hamiltonian based on the specified picture and parameters.
     """
+
+    a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
+    sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+
+    a_dag = a.dag()
+    sm_dag = sm.dag()
+
+    a = torch.tensor(a.full(), dtype=torch.complex64)
+    sm = torch.tensor(sm.full(), dtype=torch.complex64)
+    a_dag = torch.tensor(a_dag.full(), dtype=torch.complex64)
+    sm_dag = torch.tensor(sm_dag.full(), dtype=torch.complex64)
+
     if picture == "interaction":
         hamiltonian = coupling_strength * (a_dag @ sm + a @ sm_dag)
 
     elif picture == "atom":
-        hamiltonian = abs(params[0] - params[1]) / 2 * a_dag @ a + coupling_strength * (
-            a_dag @ sm + a @ sm_dag
-        )
+        hamiltonian = abs(
+            params["wc"] - params["wa"]
+        ) / 2 * a_dag @ a + coupling_strength * (a_dag @ sm + a @ sm_dag)
 
     return hamiltonian
 
 
 def loss_ic(nn_state, sim_state):
-    loss = msa(nn_state[0], sim_state[0])
+    loss = mae(nn_state[0], sim_state[0])
     return loss
 
 
 def loss_norm(nn_state):
     squared_sum = (abs(nn_state) ** 2).sum(-1)
-    loss = msa(squared_sum, 1)
+    loss = mae(squared_sum, 1)
     return loss
 
 
@@ -59,7 +66,7 @@ def loss_data(nn_state, operators, sim_expect, n_points=None):
             ev = (torch.conj(nn_state[0]) @ (op @ nn_state[0])).real
             expected_values_nn.append(ev)
         expected_values_nn = torch.stack(expected_values_nn)
-        loss = msa(expected_values_nn, sim_expect[0])
+        loss = mae(expected_values_nn, sim_expect[0])
         return loss
 
     torch.manual_seed(global_variables.SEED)
@@ -79,7 +86,7 @@ def loss_data(nn_state, operators, sim_expect, n_points=None):
         expected_values_nn, dim=1
     )  # (n_points, n_observables)
 
-    loss = msa(expected_values_nn, selected_sim)
+    loss = mae(expected_values_nn, selected_sim)
     return loss
 
 
@@ -92,7 +99,7 @@ def loss_ode(H_, nn_state, tempo):
 
     # Calculando o gradiente de drho_dt separando a parte real e imagina
     loss = 0
-    for i in range(global_variables.JC_DIM):
+    for i in range(state.shape[-1]):
         drho_dt_real = torch.autograd.grad(
             outputs=nn_real[:, i],
             inputs=tempo,
@@ -111,6 +118,6 @@ def loss_ode(H_, nn_state, tempo):
 
         drho_dt = drho_dt_real + 1j * drho_dt_imag
 
-        loss += torch.mean( abs( drho_dt + H_psi[:, i].reshape((n_time_steps, 1)) ) ) ** 2
+        loss += torch.mean(abs(drho_dt + H_psi[:, i].reshape((n_time_steps, 1))))
 
     return loss

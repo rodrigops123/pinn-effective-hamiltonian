@@ -2,22 +2,6 @@ import torch
 import torch.nn as nn
 
 
-class SIN(nn.Module):
-    def __init__(self):
-        super(SIN, self).__init__()
-
-    def forward(self, x):
-        return torch.sin(x)
-
-
-class TANH(nn.Module):
-    def __init__(self):
-        super(TANH, self).__init__()
-
-    def forward(self, x):
-        return torch.tanh(x)
-
-
 class Neural_Net(nn.Module):
     def __init__(
         self,

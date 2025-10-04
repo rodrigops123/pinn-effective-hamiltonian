@@ -23,13 +23,17 @@ from src.data_simulation.jaynes_cummings_data import data_jc
 from src.model.train_and_eval import train_test_split
 
 
-def prep_plot_input(params, tfinal, n_time_steps, picture, plot_input):
+def prep_plot_input(
+    params, tfinal, n_time_steps, init_state, picture, dims, plot_input
+):
 
     sim_state, sim_expect, _, operators_list, time = data_jc(
         params=params,
         tfinal=tfinal,
         n_time_steps=n_time_steps,
+        init_state=init_state,
         picture=picture,
+        dims=dims,
     )
 
     time = torch.linspace(0, tfinal, n_time_steps)
@@ -101,8 +105,10 @@ def plot_expected_values(
     models_dict,
     tfinal,
     n_time_steps,
+    init_state,
     params,
     picture,
+    dims,
     train_or_test,
     plot_input="expected",
 ):
@@ -121,7 +127,9 @@ def plot_expected_values(
         time_train,
         time_test,
         operators_list,
-    ) = prep_plot_input(params, tfinal, n_time_steps, picture, plot_input)
+    ) = prep_plot_input(
+        params, tfinal, n_time_steps, init_state, picture, dims, plot_input
+    )
 
     ax0, ax1 = set_plot_params_expected_values()
     labels, labels_error, colors, colors_error = set_labels_and_colors_expected_values()
@@ -248,13 +256,15 @@ def plot_states(
     params,
     tfinal,
     n_time_steps,
+    init_state,
     picture,
+    dims,
     train_or_test,
     plot_input="state",
 ):
 
     sim_state_train, sim_state_test, time_train, time_test = prep_plot_input(
-        params, tfinal, n_time_steps, picture, plot_input
+        params, tfinal, n_time_steps, init_state, picture, dims, plot_input
     )
 
     fig, axs = set_plot_params_states()
