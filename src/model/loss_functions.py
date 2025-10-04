@@ -97,10 +97,10 @@ def loss_ode(H_, nn_state, tempo):
     state = nn_real + 1j * nn_imag
     H_psi = 1j * (state @ H_)
 
-    # Calculando o gradiente de drho_dt separando a parte real e imagina
+    # Calculando o gradiente de dpsi_dt separando a parte real e imagina
     loss = 0
     for i in range(state.shape[-1]):
-        drho_dt_real = torch.autograd.grad(
+        dpsi_dt_real = torch.autograd.grad(
             outputs=nn_real[:, i],
             inputs=tempo,
             grad_outputs=torch.ones_like(nn_real[:, i]),
@@ -108,7 +108,7 @@ def loss_ode(H_, nn_state, tempo):
             create_graph=True,
         )[0]
 
-        drho_dt_imag = torch.autograd.grad(
+        dpsi_dt_imag = torch.autograd.grad(
             outputs=nn_imag[:, i],
             inputs=tempo,
             grad_outputs=torch.ones_like(nn_imag[:, i]),
@@ -116,8 +116,8 @@ def loss_ode(H_, nn_state, tempo):
             create_graph=True,
         )[0]
 
-        drho_dt = drho_dt_real + 1j * drho_dt_imag
+        dpsi_dt = dpsi_dt_real + 1j * dpsi_dt_imag
 
-        loss += torch.mean(abs(drho_dt + H_psi[:, i].reshape((n_time_steps, 1))))
+        loss += torch.mean(abs(dpsi_dt + H_psi[:, i].reshape((n_time_steps, 1))))
 
     return loss
