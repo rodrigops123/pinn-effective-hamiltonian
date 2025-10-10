@@ -7,18 +7,10 @@ if project_root not in sys.path:
 
 import torch
 import matplotlib.pyplot as plt
+import scienceplots
+plt.style.use(['science'])
 import matplotlib.gridspec as gridspec
 import numpy as np
-
-plt.rcParams.update(
-    {
-        "text.usetex": True,
-        "font.family": "serif",
-        "font.serif": ["Times"],
-        "text.latex.preamble": r"\usepackage{physics}",
-    }
-)
-
 from src.data_simulation.jaynes_cummings_data import data_jc
 from src.model.train_and_eval import train_test_split
 
@@ -81,12 +73,12 @@ def set_plot_params_expected_values():
 def set_labels_and_colors_expected_values():
     labels = [
         [
-            r"\(\ev{a^\dagger a}_{NN}\)",
-            r"\(\ev{a^\dagger a}_{sim}\)",
+            r"\(\langle a^\dagger a \rangle_{NN}\)",
+            r"\(\langle a^\dagger a \rangle_{sim}\)",
         ],
         [
-            r"\(\ev{ \sigma_+ \sigma_-}_{NN}\)",
-            r"\(\ev{ \sigma_+ \sigma_-}_{sim}\)",
+            r"\(\langle \sigma_+ \sigma_- \rangle_{NN}\)",
+            r"\(\langle \sigma_+ \sigma_- \rangle_{sim}\)",
         ],
     ]
 
@@ -172,7 +164,7 @@ def plot_expected_values(
             )
             ax1.legend()
 
-            plt.tight_layout()
+            #plt.tight_layout()
 
         plt.show()
 
@@ -194,7 +186,7 @@ def plot_expected_values(
                 time_test.numpy().squeeze(),
                 expected_values_test.detach().numpy(),
                 label=labels[i][0],
-                color=colors[i],
+                # color=colors[i],
             )
 
             ax0.plot(
@@ -214,34 +206,34 @@ def plot_expected_values(
             )
             ax1.legend()
 
-            plt.tight_layout()
+            # plt.tight_layout()
 
         plt.show()
 
 
 def set_plot_params_states():
     fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(12, 4), sharex=True, dpi=300)
-    axs[0, 0].set_title(r"$\ket{\tilde{\psi}_R (t)}$")
+    axs[0, 0].set_title(r"Target - \(|\tilde{\psi}_R (t)\rangle\)")
     axs[0, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 0].yaxis.set_ticklabels([])
 
-    axs[1, 0].set_title(r"$\ket{\psi_R(t)}$")
+    axs[1, 0].set_title(r"\(|\psi_R(t)\rangle\)")
     axs[1, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 0].yaxis.set_ticklabels([])
 
-    axs[2, 0].set_title(r"$\abs{\ket{\psi_R(t)} - \ket{\tilde{\psi}_R(t)} }$")
+    axs[2, 0].set_title(r"\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle|\)")
     axs[2, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 0].yaxis.set_ticklabels([])
 
-    axs[0, 1].set_title(r"$\ket{\tilde{\psi}_I(t)}$")
+    axs[0, 1].set_title(r"Target - \(|\tilde{\psi}_I(t)\rangle\)")
     axs[0, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 1].yaxis.set_ticklabels([])
 
-    axs[1, 1].set_title(r"$\ket{\psi_I(t)}$")
+    axs[1, 1].set_title(r"\(|\psi_I(t)\rangle\)")
     axs[1, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 1].yaxis.set_ticklabels([])
 
-    axs[2, 1].set_title(r"$\abs*{ \ket{\psi_I(t)} - \ket{\tilde{\psi}_I(t)} }$")
+    axs[2, 1].set_title(r"\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle|\)")
     axs[2, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 1].yaxis.set_ticklabels([])
 

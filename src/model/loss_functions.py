@@ -21,14 +21,20 @@ def hamiltonian_with_params(
 
     a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
     sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+    sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
 
     a_dag = a.dag()
     sm_dag = sm.dag()
 
-    a = torch.tensor(a.full(), dtype=torch.complex64)
-    sm = torch.tensor(sm.full(), dtype=torch.complex64)
-    a_dag = torch.tensor(a_dag.full(), dtype=torch.complex64)
-    sm_dag = torch.tensor(sm_dag.full(), dtype=torch.complex64)
+    a = torch.tensor(a.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+    sm = torch.tensor(sm.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+    a_dag = torch.tensor(
+        a_dag.full(), dtype=torch.complex64, device=global_variables.DEVICE
+    )
+    sm_dag = torch.tensor(
+        sm_dag.full(), dtype=torch.complex64, device=global_variables.DEVICE
+    )
+    sz = torch.tensor(sz.full(), dtype=torch.complex64, device=global_variables.DEVICE)
 
     if picture == "interaction":
         hamiltonian = coupling_strength * (a_dag @ sm + a @ sm_dag)
@@ -36,7 +42,19 @@ def hamiltonian_with_params(
     elif picture == "atom":
         hamiltonian = 0.5 * abs(
             params["wc"] - params["wa"]
-        ) * a_dag @ a + coupling_strength * (a_dag @ sm + a @ sm_dag)
+        ) / 2 * a_dag @ a + coupling_strength * (a_dag @ sm + a @ sm_dag)
+
+    elif picture == "full":
+        hamiltonian = (
+            params["wc"] * a_dag * a
+            + 0.5 * params["wa"] * sz
+            + coupling_strength * (a_dag @ sm + a @ sm_dag)
+        )
+
+    else:
+        raise ValueError(
+            "Invalid picture. Choose from 'interaction', 'atom', or 'full'."
+        )
 
     return hamiltonian
 

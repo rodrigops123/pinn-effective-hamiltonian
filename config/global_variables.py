@@ -20,3 +20,7 @@ model_train_params = {
     "units": [50, 50],
     "activation": SIN(),
 }
+import torch
+
+#DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cpu"  # FORCE CPU

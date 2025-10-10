@@ -49,7 +49,7 @@ def instantiate_model(
         input=input_dim,
         output=output_dim,
         create_parameter=create_parameter,
-    )
+    ).to(device=global_variables.DEVICE)
 
     model_imag = Neural_Net(
         units=neural_net_params["units"],
@@ -57,7 +57,7 @@ def instantiate_model(
         input=input_dim,
         output=output_dim,
         create_parameter=False,
-    )
+    ).to(device=global_variables.DEVICE)
 
     return model_real, model_imag
 
@@ -185,10 +185,10 @@ def train_with_parameter(
         # Compute the Hamiltonian with the current parameters
         # and coupling strength
         hamiltonian = hamiltonian_with_params(
-            picture=picture,
-            params=params,
-            coupling_strength=coupling_strength,
-            dims=dims,
+            picture = picture,
+            params  = params,
+            coupling_strength = coupling_strength,
+            dims    = dims,
         )
 
         # Compute losses

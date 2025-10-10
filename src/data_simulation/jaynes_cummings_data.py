@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import qutip
 from typing import Union
+from config.global_variables import DEVICE
 
 
 def choose_init_state(init_state: str, dims: dict) -> qutip.Qobj:
@@ -69,29 +70,28 @@ def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
     Returns:
         str: The chosen Hamiltonian.
     """
+    a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
+    sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
     if picture == "interaction":
-        a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
-        sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
 
         hamiltonian = params["g"] * (a.dag() * sm + a * sm.dag())
-
-    if picture == "atom":
-        a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
-        sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+    elif picture == "atom":
 
         hamiltonian = 0.5 * abs(params["wc"] - params["wa"]) * a.dag() * a + params[
             "g"
         ] * (a.dag() * sm + a * sm.dag())
 
-    if picture == "full":
-        a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
-        sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+    elif picture == "full":
         sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
 
         hamiltonian = (
             params["wc"] * a.dag() * a
             + 0.5 * params["wa"] * sz
             + params["g"] * (a.dag() * sm + a * sm.dag())
+        )
+    else:
+        raise ValueError(
+            "Picture not recognized. Choose 'interaction', 'atom' or 'full'."
         )
 
     return hamiltonian
@@ -151,10 +151,12 @@ def data_jc(
     expect = np.array(result.expect)
 
     # Converting to torch tensors
-    hamiltonian = torch.tensor(hamiltonian.full(), dtype=torch.complex64)
-    operators_list = torch.tensor(operators_list)
-    y_train = torch.tensor(y_train)
-    expect = torch.tensor(expect).transpose(0, 1)
-    time = torch.tensor(tlist, dtype=torch.float32, requires_grad=True).reshape(-1, 1)
+    hamiltonian = torch.tensor(hamiltonian.full(), dtype=torch.complex64, device=DEVICE)
+    operators_list = torch.tensor(operators_list, device=DEVICE)
+    y_train = torch.tensor(y_train, device=DEVICE)
+    expect = torch.tensor(expect, device=DEVICE).transpose(0, 1)
+    time = torch.tensor(
+        tlist, dtype=torch.float32, requires_grad=True, device=DEVICE
+    ).reshape(-1, 1)
 
     return y_train, expect, hamiltonian, operators_list, time
