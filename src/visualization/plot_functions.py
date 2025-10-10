@@ -73,7 +73,7 @@ def set_plot_params_expected_values():
     ax1 = fig.add_subplot(gs[1], sharex=ax0)
     ax1.set_xlabel(r"\(gt\)")
     ax1.set_ylabel("Error")
-    ax1.grid(linestyle="--")
+    ax1.grid(linestyle="--", alpha=0.6)
 
     return ax0, ax1
 
@@ -437,7 +437,7 @@ def plot_loss_functions(loss_dict: dict, skip_param: int):
     plt.ylabel("Loss")
     plt.title("Loss Functions During Training")
     plt.legend()
-    plt.grid()
+    plt.grid(linestyle="--", alpha=0.6)
     plt.show()
 
 
@@ -460,3 +460,40 @@ def plot_learned_param(loss_dict: dict, skip_param: int):
     plt.legend()
     plt.grid()
     plt.show()
+
+
+def plot_fidelity(
+    models_dict,
+    params,
+    tfinal,
+    n_time_steps,
+    init_state,
+    picture,
+    dims,
+    train_or_test,
+    plot_input="state",
+):
+
+    sim_state_train, sim_state_test, time_train, time_test = prep_plot_input(
+        params, tfinal, n_time_steps, init_state, picture, dims, plot_input
+    )
+
+    if train_or_test == "train":
+        nn_state_train_real = models_dict["model_real"](time_train)
+        nn_state_train_imag = models_dict["model_imag"](time_train)
+        
+        nn_state_train = nn_state_train_real + 1j * nn_state_train_imag
+
+        nn_state_train_conj = nn_state_train.conj()
+        
+        inner_product = torch.sum(nn_state_train_conj * sim_state_train, dim=1)
+        
+        fidelity = torch.abs(inner_product) ** 2
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(time_train.detach().numpy(), fidelity.detach().numpy(), label="Fidelity")
+        plt.xlabel(r"\(gt\)")
+        plt.ylabel(r"\(\mathcal{F}(\tilde{\psi}(t), \psi(t))\)")
+        plt.title("Fidelity During Training")
+        plt.grid(linestyle="--", alpha=0.6)
+        plt.show()

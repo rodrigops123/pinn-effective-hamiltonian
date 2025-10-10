@@ -17,6 +17,6 @@ sm = qutip.tensor(qutip.qeye(ATOM_DIM), qutip.destroy(FIELD_DIM))
 SEED = 42
 
 model_train_params = {
-    "units": [10, 10],
+    "units": [50, 50],
     "activation": SIN(),
 }

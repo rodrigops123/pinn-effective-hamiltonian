@@ -34,9 +34,9 @@ def hamiltonian_with_params(
         hamiltonian = coupling_strength * (a_dag @ sm + a @ sm_dag)
 
     elif picture == "atom":
-        hamiltonian = abs(
+        hamiltonian = 0.5 * abs(
             params["wc"] - params["wa"]
-        ) / 2 * a_dag @ a + coupling_strength * (a_dag @ sm + a @ sm_dag)
+        ) * a_dag @ a + coupling_strength * (a_dag @ sm + a @ sm_dag)
 
     return hamiltonian
 

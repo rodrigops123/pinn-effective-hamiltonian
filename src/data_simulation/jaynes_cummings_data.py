@@ -16,34 +16,42 @@ def choose_init_state(init_state: str, dims: dict) -> qutip.Qobj:
     # - superposição de fock -> schrodinger
 
     if init_state == "fock_superposition":
-        if dims["field"] == 2:
-            psi0a = qutip.tensor(
-                qutip.basis(dims["atom"], 0),
-                (qutip.basis(dims["field"], 0) + qutip.basis(dims["field"], 1)),
-            )
-            psi0 = psi0a.unit()
+        # if dims["field"] == 2:
+        #     psi0a = qutip.tensor(
+        #         qutip.basis(dims["atom"], 0),
+        #         (qutip.basis(dims["field"], 0) + qutip.basis(dims["field"], 1)),
+        #     )
+        #     psi0 = psi0a.unit()
 
-        elif dims["field"] == 3:
-            psi0a = qutip.tensor(
-                qutip.basis(dims["atom"], 0),
-                (
-                    qutip.basis(dims["field"], 0)
-                    + qutip.basis(dims["field"], 1)
-                    + qutip.basis(dims["field"], 2)
-                ),
-            )
-            psi0 = psi0a.unit()
+        # elif dims["field"] == 3:
+        psi0a = qutip.tensor(
+            qutip.basis(dims["atom"], 1),
+            (
+                qutip.basis(dims["field"], 0)
+                + qutip.basis(dims["field"], 1)
+                + qutip.basis(dims["field"], 2)
+            ),
+        )
+        psi0 = psi0a.unit()
 
     if init_state == "fock":
         psi0a = qutip.tensor(
-            qutip.basis(dims["atom"], 0), qutip.basis(dims["field"], 1)
+            qutip.basis(dims["atom"], 1), qutip.basis(dims["field"], 0)
         )
         psi0 = psi0a.unit()
-        
+
     if init_state == "coherent":
         alpha = 1.0
         psi0a = qutip.tensor(
             qutip.basis(dims["atom"], 0), qutip.coherent(dims["field"], alpha)
+        )
+        psi0 = psi0a.unit()
+
+    if init_state == "squeeze":
+        r = 1.0
+        psi0a = qutip.tensor(
+            qutip.basis(dims["atom"], 0),
+            qutip.squeeze(dims["field"], r) * qutip.basis(dims["field"], 0),
         )
         psi0 = psi0a.unit()
 
@@ -71,7 +79,9 @@ def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
         a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
         sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
 
-        hamiltonian = 0.5 * abs(params["wc"] - params["wa"]) * a.dag() * a + params["g"] * (a.dag() * sm + a * sm.dag())
+        hamiltonian = 0.5 * abs(params["wc"] - params["wa"]) * a.dag() * a + params[
+            "g"
+        ] * (a.dag() * sm + a * sm.dag())
 
     if picture == "full":
         a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))

@@ -180,7 +180,7 @@ def train_with_parameter(
         nn_state_imag = model_imag(time_train)
         nn_state = nn_state_real + 1j * nn_state_imag
 
-        coupling_strength = model_real.param
+        coupling_strength = torch.abs(model_real.param)
 
         # Compute the Hamiltonian with the current parameters
         # and coupling strength
