@@ -82,13 +82,13 @@ def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
         ] * (a.dag() * sm + a * sm.dag())
 
     elif picture == "full":
-        sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
 
         hamiltonian = (
             params["wc"] * a.dag() * a
-            + 0.5 * params["wa"] * sz
+            + params["wa"] * sm.dag() * sm
             + params["g"] * (a.dag() * sm + a * sm.dag())
         )
+
     else:
         raise ValueError(
             "Picture not recognized. Choose 'interaction', 'atom' or 'full'."
