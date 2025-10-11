@@ -73,8 +73,8 @@ def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
     a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
     sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
     if picture == "interaction":
-
         hamiltonian = params["g"] * (a.dag() * sm + a * sm.dag())
+
     elif picture == "atom":
 
         hamiltonian = 0.5 * abs(params["wc"] - params["wa"]) * a.dag() * a + params[

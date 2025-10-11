@@ -186,7 +186,7 @@ def plot_expected_values(
                 time_test.numpy().squeeze(),
                 expected_values_test.detach().numpy(),
                 label=labels[i][0],
-                # color=colors[i],
+                color=colors[i],
             )
 
             ax0.plot(
@@ -221,7 +221,7 @@ def set_plot_params_states():
     axs[1, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 0].yaxis.set_ticklabels([])
 
-    axs[2, 0].set_title(r"\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle|\)")
+    axs[2, 0].set_title(r"abs(\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle\))")
     axs[2, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 0].yaxis.set_ticklabels([])
 
@@ -233,7 +233,7 @@ def set_plot_params_states():
     axs[1, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 1].yaxis.set_ticklabels([])
 
-    axs[2, 1].set_title(r"\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle|\)")
+    axs[2, 1].set_title(r"abs(\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle\))")
     axs[2, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 1].yaxis.set_ticklabels([])
 
