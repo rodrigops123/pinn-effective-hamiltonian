@@ -72,6 +72,11 @@ def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
     """
     a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
     sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+    sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
+    sy = qutip.tensor(qutip.sigmay(), qutip.qeye(dims["field"]))
+    sx = qutip.tensor(qutip.sigmax(), qutip.qeye(dims["field"]))
+
+
     if picture == "interaction":
 
         hamiltonian = params["g"] * (a.dag() * sm + a * sm.dag())
@@ -82,9 +87,39 @@ def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
         ] * (a.dag() * sm + a * sm.dag())
 
     elif picture == "full":
-        sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
 
-        hamiltonian =  params["wc"] * a.dag() * a  + params["wa"] * sm.dag() * sm + params["g"] * (a.dag() * sm + a * sm.dag())
+        hamiltonian =  params["wc"] * a.dag() * a  + params["wa"] * sm.dag() * sm + params["g"] * ( a.dag() * sm + a * sm.dag() )
+        
+    elif picture == "rabi":
+
+        hamiltonian =   params["wc"] * a.dag() * a  + params["wa"] * sm.dag() * sm + \
+                        params["g1"] * a.dag() * sm + \
+                        params["g2"] * a * sm.dag() + \
+                        params["g3"] * a * sm       + \
+                        params["g4"] * a.dag() * sm.dag()
+        
+    elif picture == "rabi2":
+
+        hamiltonian =  params["wc"] * a.dag() * a  + params["wa"] * sm.dag() * sm + \
+                        params["g1"] * (a.dag() * sm +  a * sm.dag()) + \
+                        params["g2"] * (a * sm  + a.dag() * sm.dag())
+    
+    elif picture == "geral":    
+        hamiltonian =   params["wc"] * a.dag() * a  + params["wa"] * sm.dag() * sm + \
+                        params["g1"] * a.dag() * sm + \
+                        params["g2"] * a       * sm.dag() + \
+                        params["g3"] * a       * sm       + \
+                        params["g4"] * a.dag() * sm.dag()+ \
+                        params["g5"] * a.dag() * sz + \
+                        params["g6"] * a.dag() * sy + \
+                        params["g7"] * a.dag() * sx + \
+                        params["g8"] * a * sz + \
+                        params["g9"] * a * sy + \
+                        params["g10"]* a * sx 
+
+
+
+
     else:
         raise ValueError(
             "Picture not recognized. Choose 'interaction', 'atom' or 'full'."

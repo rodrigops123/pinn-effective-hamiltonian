@@ -213,11 +213,11 @@ def plot_expected_values(
 
 def set_plot_params_states():
     fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(12, 4), sharex=True, dpi=300)
-    axs[0, 0].set_title(r"Target - \(|\tilde{\psi}_R (t)\rangle\)")
+    axs[0, 0].set_title(r" \(|\tilde{\psi}_R (t)\rangle\)")
     axs[0, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 0].yaxis.set_ticklabels([])
 
-    axs[1, 0].set_title(r"\(|\psi_R(t)\rangle\)")
+    axs[1, 0].set_title(r"Target -\(|\psi_R(t)\rangle\)")
     axs[1, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 0].yaxis.set_ticklabels([])
 
@@ -225,7 +225,7 @@ def set_plot_params_states():
     axs[2, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 0].yaxis.set_ticklabels([])
 
-    axs[0, 1].set_title(r"Target - \(|\tilde{\psi}_I(t)\rangle\)")
+    axs[0, 1].set_title(r" \(|\tilde{\psi}_I(t)\rangle\)")
     axs[0, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 1].yaxis.set_ticklabels([])
 
@@ -233,7 +233,7 @@ def set_plot_params_states():
     axs[1, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 1].yaxis.set_ticklabels([])
 
-    axs[2, 1].set_title(r"\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle|\)")
+    axs[2, 1].set_title(r"Target -\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle|\)")
     axs[2, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 1].yaxis.set_ticklabels([])
 

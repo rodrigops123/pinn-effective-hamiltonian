@@ -10,7 +10,7 @@ class Neural_Net(nn.Module):
         input=1,
         output=1,
         create_parameter=False,
-        n_paramater=1,
+        n_paramater=None,
         dropout_prob=0.0,
     ):
         super().__init__()

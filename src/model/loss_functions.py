@@ -19,38 +19,62 @@ def hamiltonian_with_params(
     Returns the Hamiltonian based on the specified picture and parameters.
     """
 
-    a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
-    sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
-    sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
+    a       = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
+    sm      = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+    sz      = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
+    sy      = qutip.tensor(qutip.sigmay(), qutip.qeye(dims["field"]))
+    sx      = qutip.tensor(qutip.sigmax(), qutip.qeye(dims["field"]))
 
-    a_dag = a.dag()
-    sm_dag = sm.dag()
+    a_dag   = a.dag()
+    sm_dag  = sm.dag()
 
-    a = torch.tensor(a.full(), dtype=torch.complex64, device=global_variables.DEVICE)
-    sm = torch.tensor(sm.full(), dtype=torch.complex64, device=global_variables.DEVICE)
-    a_dag = torch.tensor(
+    a       = torch.tensor(a.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+    sm      = torch.tensor(sm.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+    a_dag   = torch.tensor(
         a_dag.full(), dtype=torch.complex64, device=global_variables.DEVICE
     )
-    sm_dag = torch.tensor(
+    sm_dag  = torch.tensor(
         sm_dag.full(), dtype=torch.complex64, device=global_variables.DEVICE
     )
-    sz = torch.tensor(sz.full(), dtype=torch.complex64, device=global_variables.DEVICE)
 
     if picture == "interaction":
-        hamiltonian = coupling_strength * (a_dag @ sm + a @ sm_dag)
+        hamiltonian = coupling_strength[0] * (a_dag @ sm + a @ sm_dag)
 
     elif picture == "atom":
         hamiltonian = 0.5 * abs(
             params["wc"] - params["wa"]
-        ) / 2 * a_dag @ a + coupling_strength * (a_dag @ sm + a @ sm_dag)
+        ) / 2 * a_dag @ a + coupling_strength[0] * (a_dag @ sm + a @ sm_dag)
 
     elif picture == "full":
-        hamiltonian = (
-            params["wc"] * a_dag * a
-            + 0.5 * params["wa"] * sz
-            + coupling_strength * (a_dag @ sm + a @ sm_dag)
-        )
+        hamiltonian =  params["wc"] * a_dag * a  + params["wa"] * sm_dag * sm + coupling_strength[0] * (a_dag @ sm + a @ sm_dag)
 
+    elif picture == "rabi":
+
+        hamiltonian =  params["wc"] * a_dag * a  + params["wa"] * sm_dag * sm + \
+                        coupling_strength[0] * a_dag @ sm + \
+                        coupling_strength[1] * a     @ sm_dag + \
+                        coupling_strength[2] * a     @ sm       + \
+                        coupling_strength[3] * a_dag @ sm_dag
+    elif picture == "rabi2":
+
+        hamiltonian =  params["wc"] * a_dag * a  + params["wa"] * sm_dag * sm + \
+                        coupling_strength[0] * (a_dag @ sm + a @ sm_dag )+ \
+                        coupling_strength[1] * (a @ sm + a_dag @ sm_dag)
+    elif picture == "geral":   
+        sz      = torch.tensor(sz.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+        sy      = torch.tensor(sy.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+        sx      = torch.tensor(sx.full(), dtype=torch.complex64, device=global_variables.DEVICE) 
+        hamiltonian =   params["wc"] * a_dag * a  + params["wa"] * sm_dag * sm + \
+                        coupling_strength[0] * a_dag @ sm + \
+                        coupling_strength[1] * a     @ sm_dag + \
+                        coupling_strength[2] * a     @  sm       + \
+                        coupling_strength[3] * a_dag @ sm_dag + \
+                        coupling_strength[4] * a_dag @ sz + \
+                        coupling_strength[5] * a_dag @ sy + \
+                        coupling_strength[6] * a_dag @ sx + \
+                        coupling_strength[7] * a     @ sz + \
+                        coupling_strength[8] * a     @ sy + \
+                        coupling_strength[9] * a     @ sx 
     else:
         raise ValueError(
             "Invalid picture. Choose from 'interaction', 'atom', or 'full'."

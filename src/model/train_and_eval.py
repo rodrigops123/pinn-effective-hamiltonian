@@ -18,10 +18,9 @@ from .loss_functions import (
 from .neural_network import Neural_Net
 from src.data_simulation.jaynes_cummings_data import data_jc
 from config import global_variables
-from utils import SIN
 
 
-def train_test_split(data, test_size=0.2):
+def train_test_split(data, test_size=0.0):
     """
     Splits the dataset into training and testing sets.
     Returns:
@@ -41,6 +40,7 @@ def instantiate_model(
     input_dim=1,
     neural_net_params=global_variables.model_train_params,
     create_parameter=False,
+    n_paramater=1,
 ):
 
     model_real = Neural_Net(
@@ -49,6 +49,7 @@ def instantiate_model(
         input=input_dim,
         output=output_dim,
         create_parameter=create_parameter,
+        n_paramater=n_paramater
     ).to(device=global_variables.DEVICE)
 
     model_imag = Neural_Net(
@@ -136,18 +137,18 @@ def train(
 
 
 def train_with_parameter(
-    epochs, params, tfinal, n_time_steps, init_state, picture, dims, n_points_loss
+    epochs, params, tfinal, n_time_steps, init_state, picture, dims, n_points_loss,n_paramater
 ):
 
     output_dim = dims["atom"] * dims["field"]
 
     model_real, model_imag = instantiate_model(
-        output_dim=output_dim, create_parameter=True
+        output_dim=output_dim, create_parameter=True,n_paramater=n_paramater
     )
 
     optimizer = torch.optim.Adam(
         list(model_real.parameters()) + list(model_imag.parameters()),
-        lr=0.001,
+        lr=global_variables.LEARNING_RATE,
         amsgrad=True,
     )
 
@@ -174,7 +175,6 @@ def train_with_parameter(
     }
 
     for _ in tqdm(range(epochs)):
-
         # Forward pass
         nn_state_real = model_real(time_train)
         nn_state_imag = model_imag(time_train)
@@ -208,7 +208,7 @@ def train_with_parameter(
         loss_dict["loss_norm"].append(loss_norm_value.item())
         loss_dict["loss_data"].append(loss_data_value.item())
         loss_dict["loss_ode"].append(loss_ode_value.item())
-        loss_dict["learned_param"].append(coupling_strength.item())
+        loss_dict["learned_param"].append(coupling_strength.tolist())
 
         # Backward pass and optimization
         optimizer.zero_grad()
