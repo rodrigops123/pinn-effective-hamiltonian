@@ -20,7 +20,7 @@ model_train_params = {
     "units": [10, 10],
     "activation": SIN(),
 }
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.01
 
 #DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-DEVICE = "cpu"  # FORCE CPU
+DEVICE = "cuda"  # FORCE CPU

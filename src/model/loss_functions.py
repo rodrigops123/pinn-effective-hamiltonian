@@ -36,6 +36,9 @@ def hamiltonian_with_params(
     sm_dag  = torch.tensor(
         sm_dag.full(), dtype=torch.complex64, device=global_variables.DEVICE
     )
+    sz      = torch.tensor(sz.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+    sy      = torch.tensor(sy.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+    sx      = torch.tensor(sx.full(), dtype=torch.complex64, device=global_variables.DEVICE) 
 
     if picture == "interaction":
         hamiltonian = coupling_strength[0] * (a_dag @ sm + a @ sm_dag)
@@ -61,9 +64,6 @@ def hamiltonian_with_params(
                         coupling_strength[0] * (a_dag @ sm + a @ sm_dag )+ \
                         coupling_strength[1] * (a @ sm + a_dag @ sm_dag)
     elif picture == "geral":   
-        sz      = torch.tensor(sz.full(), dtype=torch.complex64, device=global_variables.DEVICE)
-        sy      = torch.tensor(sy.full(), dtype=torch.complex64, device=global_variables.DEVICE)
-        sx      = torch.tensor(sx.full(), dtype=torch.complex64, device=global_variables.DEVICE) 
         hamiltonian =   params["wc"] * a_dag * a  + params["wa"] * sm_dag * sm + \
                         coupling_strength[0] * a_dag @ sm + \
                         coupling_strength[1] * a     @ sm_dag + \

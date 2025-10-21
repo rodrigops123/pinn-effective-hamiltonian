@@ -13,7 +13,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 from src.data_simulation.jaynes_cummings_data import data_jc
 from src.model.train_and_eval import train_test_split
-
+from config.global_variables import DEVICE
 
 def prep_plot_input(
     params, tfinal, n_time_steps, init_state, picture, dims, plot_input
@@ -28,7 +28,7 @@ def prep_plot_input(
         dims=dims,
     )
 
-    time = torch.linspace(0, tfinal, n_time_steps)
+    time = torch.linspace(0, tfinal, n_time_steps,device=DEVICE)
 
     if plot_input == "expected":
         sim_expect_train, sim_expect_test = train_test_split(sim_expect, test_size=0.2)
@@ -54,9 +54,9 @@ def prep_plot_input(
         )
 
 
-def set_plot_params_expected_values():
+def set_plot_params_expected_values(figsize):
 
-    fig = plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=figsize)
     gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
     ax0 = fig.add_subplot(gs[0])
     ax0.grid(linestyle="--")
