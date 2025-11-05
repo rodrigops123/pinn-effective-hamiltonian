@@ -8,7 +8,8 @@ if project_root not in sys.path:
 import torch
 import matplotlib.pyplot as plt
 import scienceplots
-plt.style.use(['science'])
+
+plt.style.use(["science", "retro", "grid"])
 import matplotlib.gridspec as gridspec
 import numpy as np
 from src.data_simulation.jaynes_cummings_data import data_jc
@@ -56,7 +57,7 @@ def prep_plot_input(
 
 def set_plot_params_expected_values():
 
-    fig = plt.figure(figsize=(10, 8))
+    fig = plt.figure(dpi=300)
     gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
     ax0 = fig.add_subplot(gs[0])
     ax0.grid(linestyle="--")
@@ -83,12 +84,12 @@ def set_labels_and_colors_expected_values():
     ]
 
     labels_error = [
-        r"error\(\left(a^\dagger a\right)\)",
-        r"error\(\left(\sigma_+ \sigma_-\right)\)",
+        r"error\((a^\dagger a)\)",
+        r"error\((\sigma_+ \sigma_-)\)",
     ]
 
     colors = ["blue", "orange"]
-    colors_error = ["green", "red"]
+    colors_error = ["blue", "orange"]
 
     return labels, labels_error, colors, colors_error
 
@@ -102,6 +103,7 @@ def plot_expected_values(
     picture,
     dims,
     train_or_test,
+    is_scaled,
     plot_input="expected",
 ):
     """
@@ -122,6 +124,10 @@ def plot_expected_values(
     ) = prep_plot_input(
         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
     )
+    
+    if is_scaled:
+        time_train = time_train / time_train.max()
+        time_test = time_test / time_test.max()
 
     ax0, ax1 = set_plot_params_expected_values()
     labels, labels_error, colors, colors_error = set_labels_and_colors_expected_values()
@@ -136,9 +142,7 @@ def plot_expected_values(
                 "ni,ij,nj->n", nn_state_train.conj(), operator, nn_state_train
             ).real
 
-            error = (
-                expected_values_train - sim_expect_train[:, i]
-            ).detach().numpy() / sim_expect_train[:, i].detach().numpy()
+            error = (expected_values_train - sim_expect_train[:, i]).detach().numpy()
 
             ax0.plot(
                 time_train.numpy().squeeze(),
@@ -154,7 +158,13 @@ def plot_expected_values(
                 color=colors[i],
                 linestyle="--",
             )
-            ax0.legend()
+            ax0.legend(
+                fontsize=4,
+                loc="upper right",
+                framealpha=0.9,
+                facecolor="lightgray",
+                edgecolor="gray",
+            )
 
             ax1.plot(
                 time_train.numpy().squeeze(),
@@ -162,9 +172,15 @@ def plot_expected_values(
                 label=labels_error[i],
                 color=colors_error[i],
             )
-            ax1.legend()
+            ax1.legend(
+                fontsize=4,
+                loc="upper right",
+                framealpha=0.9,
+                facecolor="lightgray",
+                edgecolor="gray",
+            )
 
-            #plt.tight_layout()
+            # plt.tight_layout()
 
         plt.show()
 
@@ -213,7 +229,7 @@ def plot_expected_values(
 
 def set_plot_params_states():
     fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(12, 4), sharex=True, dpi=300)
-    axs[0, 0].set_title(r"Target - \(|\tilde{\psi}_R (t)\rangle\)")
+    axs[0, 0].set_title(r"\(|\tilde{\psi}_R (t)\rangle\)")
     axs[0, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 0].yaxis.set_ticklabels([])
 
@@ -225,7 +241,7 @@ def set_plot_params_states():
     axs[2, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 0].yaxis.set_ticklabels([])
 
-    axs[0, 1].set_title(r"Target - \(|\tilde{\psi}_I(t)\rangle\)")
+    axs[0, 1].set_title(r"\(|\tilde{\psi}_I(t)\rangle\)")
     axs[0, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 1].yaxis.set_ticklabels([])
 
@@ -252,12 +268,17 @@ def plot_states(
     picture,
     dims,
     train_or_test,
+    is_scaled,
     plot_input="state",
 ):
 
     sim_state_train, sim_state_test, time_train, time_test = prep_plot_input(
         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
     )
+
+    if is_scaled:
+        time_train = time_train / time_train.max()
+        time_test = time_test / time_test.max()
 
     fig, axs = set_plot_params_states()
 
@@ -420,20 +441,28 @@ def plot_loss_functions(loss_dict: dict, skip_param: int):
     epochs = len(loss_dict["total_loss"])
     skip_epochs = int(epochs // skip_param)
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(dpi=300)
     for key, value in loss_dict.items():
         if "loss" in key:
             plt.plot(value[0:-1:skip_epochs], label=key)
     plt.yscale("log")
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
-    plt.title("Loss Functions During Training")
-    plt.legend()
-    plt.grid(linestyle="--", alpha=0.6)
+    plt.grid(alpha=0.4)
+    plt.legend(
+        loc="upper right",
+        framealpha=0.9,
+        facecolor="lightgray",
+        edgecolor="gray",
+        fontsize=6,
+    )
+    plt.tight_layout()
     plt.show()
 
 
-def plot_learned_param(loss_dict: dict, skip_param: int):
+def plot_learned_param(
+    loss_dict: dict, skip_param: int, true_param: float, picture: str
+):
     """
     Plots the learned parameters during training.
 
@@ -444,13 +473,40 @@ def plot_learned_param(loss_dict: dict, skip_param: int):
     epochs = len(loss_dict["total_loss"])
     skip_epochs = int(epochs // skip_param)
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(loss_dict["learned_param"][0:-1:skip_epochs], label="Learned Parameter")
+    learned_params = np.array(loss_dict["learned_param"])
+
+    # true_param_line = [true_param] * len(loss_dict["learned_param"][0:-1:skip_epochs])
+
+    plt.figure(dpi=300)
+
+    if picture == "rabi":
+        labels = [r"\(g_1\)", r"\(g_2\)", r"\(g_3\)", r"\(g_4\)"]
+
+        for param in range(learned_params.shape[1]):
+            plt.plot(learned_params[0:-1:skip_epochs, param], label=labels[param])
+
+    elif picture == "rabi2":
+        labels = [r"\(g_1\) (Jaynes-Cummings)", r"\(g_2\) (Counter-Rotating)"]
+
+        for param in range(learned_params.shape[1]):
+            plt.plot(learned_params[0:-1:skip_epochs, param], label=labels[param])
+
+    elif picture == "geral":
+        labels = [
+            r"\(g_1\) (Jaynes-Cummings)",
+            r"\(g_2\) (Rabi)",
+            r"\(g_3\) (Two-Photon)",
+            r"\(g_0\) (Classical Field)",
+        ]
+
+        for param in range(learned_params.shape[1]):
+            plt.plot(learned_params[0:-1:skip_epochs, param], label=labels[param])
+
+    # plt.plot(true_param_line, label="True Parameter", linestyle="--")
     plt.xlabel("Epochs")
     plt.ylabel("Parameter Value")
-    plt.title("Learned Parameter During Training")
-    plt.legend()
-    plt.grid()
+    plt.legend(fontsize=6, facecolor="lightgray", edgecolor="gray", framealpha=0.9)
+    plt.grid(alpha=0.4)
     plt.show()
 
 
@@ -463,6 +519,7 @@ def plot_fidelity(
     picture,
     dims,
     train_or_test,
+    is_scaled,
     plot_input="state",
 ):
 
@@ -470,22 +527,27 @@ def plot_fidelity(
         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
     )
 
+    if is_scaled:
+        time_train = time_train / time_train.max()
+        time_test = time_test / time_test.max()
+
     if train_or_test == "train":
         nn_state_train_real = models_dict["model_real"](time_train)
         nn_state_train_imag = models_dict["model_imag"](time_train)
-        
+
         nn_state_train = nn_state_train_real + 1j * nn_state_train_imag
 
         nn_state_train_conj = nn_state_train.conj()
-        
+
         inner_product = torch.sum(nn_state_train_conj * sim_state_train, dim=1)
-        
+
         fidelity = torch.abs(inner_product) ** 2
 
-        plt.figure(figsize=(10, 6))
-        plt.plot(time_train.detach().numpy(), fidelity.detach().numpy(), label="Fidelity")
+        plt.figure(dpi=300)
+        plt.plot(
+            time_train.detach().numpy(), fidelity.detach().numpy(), label="Fidelity"
+        )
         plt.xlabel(r"\(gt\)")
         plt.ylabel(r"\(\mathcal{F}(\tilde{\psi}(t), \psi(t))\)")
-        plt.title("Fidelity During Training")
-        plt.grid(linestyle="--", alpha=0.6)
+        plt.grid(alpha=0.4)
         plt.show()

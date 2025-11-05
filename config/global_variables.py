@@ -17,10 +17,10 @@ sm = qutip.tensor(qutip.qeye(ATOM_DIM), qutip.destroy(FIELD_DIM))
 SEED = 42
 
 model_train_params = {
-    "units": [50, 50],
+    "units": [500, 500, 500, 500],
     "activation": SIN(),
+    "learning_rate": 0.001,
 }
-import torch
 
 #DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DEVICE = "cpu"  # FORCE CPU

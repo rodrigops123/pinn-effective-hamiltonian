@@ -13,18 +13,8 @@ from config.global_variables import DEVICE
 
 
 def choose_init_state(init_state: str, dims: dict) -> qutip.Qobj:
-    # - estado de fock -> schrodinger
-    # - superposição de fock -> schrodinger
 
     if init_state == "fock_superposition":
-        # if dims["field"] == 2:
-        #     psi0a = qutip.tensor(
-        #         qutip.basis(dims["atom"], 0),
-        #         (qutip.basis(dims["field"], 0) + qutip.basis(dims["field"], 1)),
-        #     )
-        #     psi0 = psi0a.unit()
-
-        # elif dims["field"] == 3:
         psi0a = qutip.tensor(
             qutip.basis(dims["atom"], 1),
             (
@@ -72,26 +62,54 @@ def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
     """
     a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
     sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
+    sx = qutip.tensor(qutip.sigmax(), qutip.qeye(dims["field"]))
+
     if picture == "interaction":
         hamiltonian = params["g"] * (a.dag() * sm + a * sm.dag())
 
     elif picture == "atom":
-
         hamiltonian = 0.5 * abs(params["wc"] - params["wa"]) * a.dag() * a + params[
             "g"
         ] * (a.dag() * sm + a * sm.dag())
 
     elif picture == "full":
-
         hamiltonian = (
             params["wc"] * a.dag() * a
             + params["wa"] * sm.dag() * sm
             + params["g"] * (a.dag() * sm + a * sm.dag())
         )
 
+    elif picture == "rabi":
+        hamiltonian = (
+            params["wc"] * a.dag() * a
+            + params["wa"] * sm.dag() * sm
+            + params["g1"] * a.dag() * sm
+            + params["g2"] * a * sm.dag()
+            + params["g3"] * a * sm
+            + params["g4"] * a.dag() * sm.dag()
+        )
+
+    elif picture == "rabi2":
+        hamiltonian = (
+            params["wc"] * a.dag() * a
+            + params["wa"] * sm.dag() * sm
+            + params["g1"] * (a.dag() * sm + a * sm.dag())
+            + params["g2"] * (a * sm + a.dag() * sm.dag())
+        )
+
+    elif picture == "geral":
+        hamiltonian = (
+            params["wc"] * a.dag() * a
+            + params["wa"] * sm.dag() * sm                      
+            + params["g1"] * (a.dag() * sm + a * sm.dag())      # jaynes-cummings
+            + params["g2"] * (a * sm + a.dag() * sm.dag())      # rabi
+            + params["g3"] * (a + a.dag())**2 * sx              # two-photon
+            + params["g0"] * sx                                 # classic field 
+        )
+
     else:
         raise ValueError(
-            "Picture not recognized. Choose 'interaction', 'atom' or 'full'."
+            "Invalid picture. Choose from 'interaction', 'atom', 'full', 'rabi', 'rabi2', or 'geral'."
         )
 
     return hamiltonian

@@ -13,7 +13,7 @@ from config import global_variables
 
 
 def hamiltonian_with_params(
-    picture: str, params: dict, coupling_strength: float, dims: dict
+    picture: str, params: dict, coupling_strength: list, dims: dict
 ) -> torch.Tensor:
     """
     Returns the Hamiltonian based on the specified picture and parameters.
@@ -22,7 +22,8 @@ def hamiltonian_with_params(
     a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
     sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
     sz = qutip.tensor(qutip.sigmaz(), qutip.qeye(dims["field"]))
-
+    sx = qutip.tensor(qutip.sigmax(), qutip.qeye(dims["field"]))
+    
     a_dag = a.dag()
     sm_dag = sm.dag()
 
@@ -35,6 +36,7 @@ def hamiltonian_with_params(
         sm_dag.full(), dtype=torch.complex64, device=global_variables.DEVICE
     )
     sz = torch.tensor(sz.full(), dtype=torch.complex64, device=global_variables.DEVICE)
+    sx = torch.tensor(sx.full(), dtype=torch.complex64, device=global_variables.DEVICE)
 
     if picture == "interaction":
         hamiltonian = coupling_strength * (a_dag @ sm + a @ sm_dag)
@@ -51,9 +53,37 @@ def hamiltonian_with_params(
             + coupling_strength * (a_dag @ sm + a @ sm_dag)
         )
 
+    elif picture == "rabi":
+        hamiltonian = (
+            params["wc"] * a_dag * a
+            + params["wa"] * sm_dag * sm
+            + coupling_strength[0] * a_dag * sm
+            + coupling_strength[1] * a * sm_dag
+            + coupling_strength[2] * a * sm
+            + coupling_strength[3] * a_dag * sm_dag
+        )
+
+    elif picture == "rabi2":
+        hamiltonian = (
+            params["wc"] * a_dag * a
+            + params["wa"] * sm_dag * sm
+            + coupling_strength[0] * (a_dag * sm + a * sm_dag)
+            + coupling_strength[1] * (a * sm + a_dag * sm_dag)
+        )
+
+    elif picture == "geral":
+        hamiltonian = (
+            params["wc"] * a_dag * a
+            + params["wa"] * sm_dag * sm
+            + coupling_strength[0] * (a_dag * sm + a * sm_dag)  # jaynes-cummings
+            + coupling_strength[1] * (a * sm + a_dag * sm_dag)  # rabi
+            + coupling_strength[2] * (a + a_dag) ** 2 * sx  # two-photon
+            + coupling_strength[3] * sx  # classic field
+        )
+
     else:
         raise ValueError(
-            "Invalid picture. Choose from 'interaction', 'atom', or 'full'."
+            "Invalid picture. Choose from 'interaction', 'atom', 'full', 'rabi', 'rabi2', or 'geral'."
         )
 
     return hamiltonian

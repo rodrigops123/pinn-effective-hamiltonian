@@ -42,7 +42,7 @@ class Neural_Net(nn.Module):
         if self.create_parameter:
             self.param = nn.Parameter(
                 torch.rand(self.n_paramater), requires_grad=True
-            )  # * 2 * np.pi)
+            )
 
     def forward(self, x):
         for layer, activation, dropout in zip(

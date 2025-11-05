@@ -16,9 +16,9 @@ from .loss_functions import (
     hamiltonian_with_params,
 )
 from .neural_network import Neural_Net
+from .models import MixFunn
 from src.data_simulation.jaynes_cummings_data import data_jc
 from config import global_variables
-from utils import SIN
 
 
 def train_test_split(data, test_size=0.2):
@@ -41,6 +41,7 @@ def instantiate_model(
     input_dim=1,
     neural_net_params=global_variables.model_train_params,
     create_parameter=False,
+    n_paramater=1,
 ):
 
     model_real = Neural_Net(
@@ -49,6 +50,7 @@ def instantiate_model(
         input=input_dim,
         output=output_dim,
         create_parameter=create_parameter,
+        n_paramater=n_paramater,
     ).to(device=global_variables.DEVICE)
 
     model_imag = Neural_Net(
@@ -56,6 +58,28 @@ def instantiate_model(
         activation=neural_net_params["activation"],
         input=input_dim,
         output=output_dim,
+        create_parameter=False,
+    ).to(device=global_variables.DEVICE)
+
+    return model_real, model_imag
+
+
+def instantiate_model_mixfunn(
+    output_dim,
+    input_dim=1,
+    create_parameter=False,
+    n_paramater=1,
+):
+    model_real = MixFunn(
+        input_=input_dim,
+        output_=output_dim,
+        create_parameter=create_parameter,
+        n_paramater=n_paramater,
+    ).to(device=global_variables.DEVICE)
+
+    model_imag = MixFunn(
+        input_=input_dim,
+        output_=output_dim,
         create_parameter=False,
     ).to(device=global_variables.DEVICE)
 
@@ -72,7 +96,7 @@ def train(
 
     optimizer = torch.optim.Adam(
         list(model_real.parameters()) + list(model_imag.parameters()),
-        lr=0.001,
+        lr=global_variables.model_train_params["learning_rate"],
         amsgrad=True,
     )
 
@@ -136,19 +160,37 @@ def train(
 
 
 def train_with_parameter(
-    epochs, params, tfinal, n_time_steps, init_state, picture, dims, n_points_loss
+    epochs,
+    params,
+    tfinal,
+    n_time_steps,
+    init_state,
+    picture,
+    dims,
+    n_points_loss,
+    n_parameter,
+    is_scaled,
 ):
 
     output_dim = dims["atom"] * dims["field"]
 
     model_real, model_imag = instantiate_model(
-        output_dim=output_dim, create_parameter=True
+        output_dim=output_dim, create_parameter=True, n_paramater=n_parameter
     )
 
     optimizer = torch.optim.Adam(
         list(model_real.parameters()) + list(model_imag.parameters()),
-        lr=0.001,
+        lr=global_variables.model_train_params["learning_rate"],
         amsgrad=True,
+    )
+
+    # Add learning rate scheduler to monitor loss_ode and adjust learning rate
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="min",  # Reduce LR when monitored value stops decreasing
+        factor=0.5,  # Multiply LR by this factor when reducing
+        patience=500,  # Number of epochs with no improvement after which LR will be reduced
+        min_lr=1e-6,  # Lower bound on the learning rate
     )
 
     sim_state, sim_expect, hamiltonian, operator, time = data_jc(
@@ -164,6 +206,12 @@ def train_with_parameter(
     sim_expect_train, _ = train_test_split(sim_expect, test_size=0.2)
     time_train, _ = train_test_split(time, test_size=0.2)
 
+    if is_scaled == True:
+        # scale time train:
+        time_train = (time_train.detach() / time_train.max().detach()).requires_grad_(
+            True
+        )
+
     loss_dict = {
         "total_loss": [],
         "loss_ic": [],
@@ -174,6 +222,7 @@ def train_with_parameter(
     }
 
     for _ in tqdm(range(epochs)):
+        optimizer.zero_grad()
 
         # Forward pass
         nn_state_real = model_real(time_train)
@@ -185,10 +234,10 @@ def train_with_parameter(
         # Compute the Hamiltonian with the current parameters
         # and coupling strength
         hamiltonian = hamiltonian_with_params(
-            picture = picture,
-            params  = params,
-            coupling_strength = coupling_strength,
-            dims    = dims,
+            picture=picture,
+            params=params,
+            coupling_strength=coupling_strength,
+            dims=dims,
         )
 
         # Compute losses
@@ -202,18 +251,135 @@ def train_with_parameter(
         # Total loss
         total_loss = loss_ic_value + loss_norm_value + loss_data_value + loss_ode_value
 
+        # Backward pass and optimization
+        total_loss.backward()
+        optimizer.step()
+
+        scheduler.step(loss_data_value)  # Adjust learning rate based on data loss
+        # scheduler.step(loss_ode_value)  # Adjust learning rate based on ODE loss
+
         # Store losses
         loss_dict["total_loss"].append(total_loss.item())
         loss_dict["loss_ic"].append(loss_ic_value.item())
         loss_dict["loss_norm"].append(loss_norm_value.item())
         loss_dict["loss_data"].append(loss_data_value.item())
         loss_dict["loss_ode"].append(loss_ode_value.item())
-        loss_dict["learned_param"].append(coupling_strength.item())
+        loss_dict["learned_param"].append(coupling_strength.tolist())
+
+    models_dict = {
+        "model_real": model_real,
+        "model_imag": model_imag,
+    }
+
+    return models_dict, loss_dict
+
+
+def train_with_parameter_mixfunn(
+    epochs,
+    params,
+    tfinal,
+    n_time_steps,
+    init_state,
+    picture,
+    dims,
+    n_points_loss,
+    n_parameter,
+    is_scaled,
+):
+
+    output_dim = dims["atom"] * dims["field"]
+
+    model_real, model_imag = instantiate_model_mixfunn(
+        output_dim=output_dim, create_parameter=True, n_paramater=n_parameter
+    )
+
+    optimizer = torch.optim.Adam(
+        list(model_real.parameters()) + list(model_imag.parameters()),
+        lr=global_variables.model_train_params["learning_rate"],
+        amsgrad=True,
+    )
+
+    # Add learning rate scheduler to monitor loss_ode and adjust learning rate
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="min",  # Reduce LR when monitored value stops decreasing
+        factor=0.5,  # Multiply LR by this factor when reducing
+        patience=500,  # Number of epochs with no improvement after which LR will be reduced
+        min_lr=1e-6,  # Lower bound on the learning rate
+    )
+
+    sim_state, sim_expect, hamiltonian, operator, time = data_jc(
+        params=params,
+        tfinal=tfinal,
+        n_time_steps=n_time_steps,
+        init_state=init_state,
+        picture=picture,
+        dims=dims,
+    )
+
+    sim_state_train, _ = train_test_split(sim_state, test_size=0.2)
+    sim_expect_train, _ = train_test_split(sim_expect, test_size=0.2)
+    time_train, _ = train_test_split(time, test_size=0.2)
+
+    if is_scaled == True:
+        # scale time train:
+        time_train = (time_train.detach() / time_train.max().detach()).requires_grad_(
+            True
+        )
+
+    loss_dict = {
+        "total_loss": [],
+        "loss_ic": [],
+        "loss_norm": [],
+        "loss_data": [],
+        "loss_ode": [],
+        "learned_param": [],
+    }
+
+    for _ in tqdm(range(epochs)):
+        optimizer.zero_grad()
+
+        # Forward pass
+        nn_state_real = model_real(time_train)
+        nn_state_imag = model_imag(time_train)
+        nn_state = nn_state_real + 1j * nn_state_imag
+
+        coupling_strength = torch.abs(model_real.param)
+
+        # Compute the Hamiltonian with the current parameters
+        # and coupling strength
+        hamiltonian = hamiltonian_with_params(
+            picture=picture,
+            params=params,
+            coupling_strength=coupling_strength,
+            dims=dims,
+        )
+
+        # Compute losses
+        loss_ic_value = loss_ic(nn_state, sim_state_train)
+        loss_norm_value = loss_norm(nn_state)
+        loss_data_value = loss_data(
+            nn_state, operator, sim_expect_train, n_points=n_points_loss
+        )
+        loss_ode_value = loss_ode(hamiltonian, nn_state, time_train)
+
+        # Total loss
+        total_loss = loss_ic_value + loss_norm_value + loss_data_value + loss_ode_value
 
         # Backward pass and optimization
-        optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
+
+        scheduler.step(loss_data_value)  # Adjust learning rate based on data loss
+        # scheduler.step(loss_ode_value)  # Adjust learning rate based on ODE loss
+
+        # Store losses
+        loss_dict["total_loss"].append(total_loss.item())
+        loss_dict["loss_ic"].append(loss_ic_value.item())
+        loss_dict["loss_norm"].append(loss_norm_value.item())
+        loss_dict["loss_data"].append(loss_data_value.item())
+        loss_dict["loss_ode"].append(loss_ode_value.item())
+        loss_dict["learned_param"].append(coupling_strength.tolist())
 
     models_dict = {
         "model_real": model_real,
