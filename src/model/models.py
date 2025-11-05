@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from .mixfunn import Mixfun, Quad
 
@@ -18,12 +19,17 @@ class MixFunn(nn.Module):
                 input_,
                 n,
                 second_order_input=True,
-                create_parameter=False,
-                n_paramater=1,
+                # create_parameter=False,
+                # n_paramater=1,
             ),
             # mf.Quad(n,n, second_order = False),
             Quad(n, output_, second_order=False),
         )
+        
+        if create_parameter:
+            self.param = nn.Parameter(
+                torch.rand(n_paramater), requires_grad=True
+            )
 
         total_params = sum(p.numel() for p in self.parameters())
 

@@ -86,7 +86,7 @@ class Linear(nn.Module):
         return f
 
 
-functions = [Sin(), Cos(), Id()]
+functions = [Sin(), Cos(), Id(), Tanh(), ExpN(), Sqrt(), Log()]
 L = len(functions)
 
 
@@ -133,9 +133,7 @@ class Mixfun(nn.Module):
         p_drop=False,
         second_order_input=False,
         second_order_function=False,
-        temperature=1.0,
-        create_parameter=False,
-        n_paramater=1,
+        temperature=1.0
     ):
         super(Mixfun, self).__init__()
 
@@ -185,11 +183,6 @@ class Mixfun(nn.Module):
 
         if normalization_function is True or normalization_neuron is True:
             self.amplitude = nn.Parameter(torch.randn(n_out))
-
-        if create_parameter:
-            self.param = nn.Parameter(
-                torch.rand(n_paramater), requires_grad=True
-            )
 
     def forward(self, x):
 

@@ -1,3 +1,8 @@
+# Uso do MixFunn
+- A implementação do MixFunn está nos caminhos `src/model/mixfunn.py` e `src/model/models.py`.
+- O script `src/model/mixfunn.py` implementa o mixfunn de fato, com o neurônio de segunda ordem, com as combinações lineares de função de ativação etc.
+- O script `src/model/models.py` instancia o mixfunn numa rede. Ele usa os blocos que foram definidos na `mixfunn.py` para gerar uma rede. Essa rede que é instanciada na hora do treino. Foi nesse script, na classe MixFunn onde eu inseri os parâmetros do sistema.
+
 # Introduction
 This is a code base used to train a neural network based on the Physics Informed Neural Networks (PINN) framework to:
 - learn the vector state associated with a Jaynes-Cummings model
