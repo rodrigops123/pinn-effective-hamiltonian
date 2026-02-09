@@ -11,19 +11,21 @@ class MixFunn(nn.Module):
         output_=1,
         create_parameter=False,
         n_paramater=1,
+        p_drop=False,
     ):
         super(MixFunn, self).__init__()
         n = 32
         self.layer = nn.Sequential(
             Mixfun(
                 input_,
-                n,
+                # n,
+                output_,
                 second_order_input=True,
-                # create_parameter=False,
-                # n_paramater=1,
+                second_order_function=True,
+                p_drop=p_drop,
             ),
             # mf.Quad(n,n, second_order = False),
-            Quad(n, output_, second_order=False),
+            # Quad(n, output_, second_order=True),
         )
         
         if create_parameter:

@@ -7,6 +7,7 @@ if project_root not in sys.path:
 
 import torch
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 import scienceplots
 
 plt.style.use(["science", "retro", "grid"])
@@ -31,27 +32,15 @@ def prep_plot_input(
 
     time = torch.linspace(0, tfinal, n_time_steps)
 
-    if plot_input == "expected":
-        sim_expect_train, sim_expect_test = train_test_split(sim_expect, test_size=0.2)
-        time_train, time_test = train_test_split(time, test_size=0.2)
+    time = time.reshape(-1, 1)
 
-        return (
-            sim_expect_train,
-            sim_expect_test,
-            time_train.reshape(-1, 1),
-            time_test.reshape(-1, 1),
-            operators_list,
-        )
+    if plot_input == "expected":
+        return sim_expect, time, operators_list
 
     else:
-        sim_state_train, sim_state_test = train_test_split(sim_state, test_size=0.2)
-        time_train, time_test = train_test_split(time, test_size=0.2)
-
         return (
-            sim_state_train,
-            sim_state_test,
-            time_train.reshape(-1, 1),
-            time_test.reshape(-1, 1),
+            sim_state,
+            time,
         )
 
 
@@ -74,18 +63,18 @@ def set_plot_params_expected_values():
 def set_labels_and_colors_expected_values():
     labels = [
         [
-            r"\(\langle a^\dagger a \rangle_{NN}\)",
-            r"\(\langle a^\dagger a \rangle_{sim}\)",
+            r"\(\langle \hat{a}^\dagger \hat{a} \rangle_{NN}\)",
+            r"\(\langle \hat{a}^\dagger \hat{a} \rangle_{sim}\)",
         ],
         [
-            r"\(\langle \sigma_+ \sigma_- \rangle_{NN}\)",
-            r"\(\langle \sigma_+ \sigma_- \rangle_{sim}\)",
+            r"\(\langle \hat{\sigma}_+ \hat{\sigma}_- \rangle_{NN}\)",
+            r"\(\langle \hat{\sigma}_+ \hat{\sigma}_- \rangle_{sim}\)",
         ],
     ]
 
     labels_error = [
-        r"error\((a^\dagger a)\)",
-        r"error\((\sigma_+ \sigma_-)\)",
+        r"error\((\hat{a}^\dagger \hat{a})\)",
+        r"error\((\hat{\sigma}_+ \hat{\sigma}_-)\)",
     ]
 
     colors = ["blue", "orange"]
@@ -102,7 +91,6 @@ def plot_expected_values(
     params,
     picture,
     dims,
-    train_or_test,
     is_scaled,
     plot_input="expected",
 ):
@@ -115,148 +103,334 @@ def plot_expected_values(
         time: Time points for the x-axis.
         operator: Operator used to compute expected values.
     """
-    (
-        sim_expect_train,
-        sim_expect_test,
-        time_train,
-        time_test,
-        operators_list,
-    ) = prep_plot_input(
+
+    sim_expect, time, operators_list = prep_plot_input(
         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
     )
-    
+
     if is_scaled:
-        time_train = time_train / time_train.max()
-        time_test = time_test / time_test.max()
+        time = time / time.max()
 
     ax0, ax1 = set_plot_params_expected_values()
     labels, labels_error, colors, colors_error = set_labels_and_colors_expected_values()
 
-    if train_or_test == "train":
-        for i, operator in enumerate(operators_list):
-            nn_state_train = models_dict["model_real"](time_train) + 1j * models_dict[
-                "model_imag"
-            ](time_train)
+    for i, operator in enumerate(operators_list):
+        nn_state_train = models_dict["model_real"](time) + 1j * models_dict[
+            "model_imag"
+        ](time)
 
-            expected_values_train = torch.einsum(
-                "ni,ij,nj->n", nn_state_train.conj(), operator, nn_state_train
-            ).real
+        expected_values_train = torch.einsum(
+            "ni,ij,nj->n", nn_state_train.conj(), operator, nn_state_train
+        ).real
 
-            error = (expected_values_train - sim_expect_train[:, i]).detach().numpy()
+        error = np.abs((expected_values_train - sim_expect[:, i]).detach().numpy())
 
-            ax0.plot(
-                time_train.numpy().squeeze(),
-                expected_values_train.detach().numpy(),
-                label=labels[i][0],
-                color=colors[i],
-            )
+        ax0.plot(
+            time.numpy().squeeze(),
+            expected_values_train.detach().numpy(),
+            label=labels[i][0],
+            color=colors[i],
+        )
 
-            ax0.plot(
-                time_train.numpy().squeeze(),
-                sim_expect_train[:, i].detach().numpy(),
-                label=labels[i][1],
-                color=colors[i],
-                linestyle="--",
-            )
-            ax0.legend(
-                fontsize=4,
-                loc="upper right",
-                framealpha=0.9,
-                facecolor="lightgray",
-                edgecolor="gray",
-            )
+        ax0.plot(
+            time.numpy().squeeze(),
+            sim_expect[:, i].detach().numpy(),
+            label=labels[i][1],
+            color=colors[i],
+            linestyle="--",
+        )
 
-            ax1.plot(
-                time_train.numpy().squeeze(),
-                error,
-                label=labels_error[i],
-                color=colors_error[i],
-            )
-            ax1.legend(
-                fontsize=4,
-                loc="upper right",
-                framealpha=0.9,
-                facecolor="lightgray",
-                edgecolor="gray",
-            )
+        ax0.legend(
+            fontsize=6,
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1.0),  # push legend outside
+            borderaxespad=0.0,
+            framealpha=0.9,
+            facecolor="lightgray",
+            edgecolor="gray",
+        )
 
-            # plt.tight_layout()
+        ax1.plot(
+            time.numpy().squeeze(),
+            error,
+            label=labels_error[i],
+            color=colors_error[i],
+        )
+        ax1.legend(
+            fontsize=6,
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1.0),  # push legend outside
+            borderaxespad=0.0,
+            framealpha=0.9,
+            facecolor="lightgray",
+            edgecolor="gray",
+        )
 
-        plt.show()
-
-    else:
-        for i, operator in enumerate(operators_list):
-            nn_state_test = models_dict["model_real"](time_test) + 1j * models_dict[
-                "model_imag"
-            ](time_test)
-
-            expected_values_test = torch.einsum(
-                "ni,ij,nj->n", nn_state_test.conj(), operator, nn_state_test
-            ).real
-
-            error = (
-                expected_values_test - sim_expect_test[:, i]
-            ).detach().numpy() / sim_expect_test[:, i].detach().numpy()
-
-            ax0.plot(
-                time_test.numpy().squeeze(),
-                expected_values_test.detach().numpy(),
-                label=labels[i][0],
-                color=colors[i],
-            )
-
-            ax0.plot(
-                time_test.numpy().squeeze(),
-                sim_expect_test[:, i].detach().numpy(),
-                label=labels[i][1],
-                color=colors[i],
-                linestyle="--",
-            )
-            ax0.legend()
-
-            ax1.plot(
-                time_test.numpy().squeeze(),
-                error,
-                label=labels_error[i],
-                color=colors_error[i],
-            )
-            ax1.legend()
-
-            # plt.tight_layout()
-
-        plt.show()
+    plt.show()
 
 
 def set_plot_params_states():
-    fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(12, 4), sharex=True, dpi=300)
-    axs[0, 0].set_title(r"\(|\tilde{\psi}_R (t)\rangle\)")
+    fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(12, 8), sharex=True, dpi=300)
+    axs[0, 0].set_title(r"\(|\tilde{\psi}_R (t)\rangle\)", fontsize=18)
     axs[0, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 0].yaxis.set_ticklabels([])
 
-    axs[1, 0].set_title(r"\(|\psi_R(t)\rangle\)")
+    axs[1, 0].set_title(r"\(|\psi_R(t)\rangle\)", fontsize=18)
     axs[1, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 0].yaxis.set_ticklabels([])
 
-    axs[2, 0].set_title(r"abs(\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle\))")
+    axs[2, 0].set_title(
+        r"abs(\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle\))", fontsize=18
+    )
     axs[2, 0].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 0].yaxis.set_ticklabels([])
 
-    axs[0, 1].set_title(r"\(|\tilde{\psi}_I(t)\rangle\)")
+    axs[0, 1].set_title(r"\(|\tilde{\psi}_I(t)\rangle\)", fontsize=18)
     axs[0, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[0, 1].yaxis.set_ticklabels([])
 
-    axs[1, 1].set_title(r"\(|\psi_I(t)\rangle\)")
+    axs[1, 1].set_title(r"\(|\psi_I(t)\rangle\)", fontsize=18)
     axs[1, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[1, 1].yaxis.set_ticklabels([])
 
-    axs[2, 1].set_title(r"abs(\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle\))")
+    axs[2, 1].set_title(
+        r"abs(\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle\))", fontsize=18
+    )
     axs[2, 1].yaxis.set_ticks([])  # Remove y-ticks
     axs[2, 1].yaxis.set_ticklabels([])
 
-    axs[2, 0].set_xlabel(r"\(gt\)")
-    axs[2, 1].set_xlabel(r"\(gt\)")
+    axs[2, 0].set_xlabel(r"\(gt\)", fontsize=16)
+    axs[2, 1].set_xlabel(r"\(gt\)", fontsize=16)
+
+    axs[2, 0].xaxis.set_tick_params(labelsize=14)
+    axs[2, 1].xaxis.set_tick_params(labelsize=14)
 
     return fig, axs
+
+
+# def plot_states(
+#     models_dict,
+#     params,
+#     tfinal,
+#     n_time_steps,
+#     init_state,
+#     picture,
+#     dims,
+#     is_scaled,
+#     plot_input="state",
+# ):
+
+#     sim_state, time = prep_plot_input(
+#         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
+#     )
+
+#     if is_scaled:
+#         time = time / time.max()
+
+#     fig, axs = set_plot_params_states()
+
+#     # ============================================================
+#     # NEW: render each vector component as a "strip", with REAL gaps
+#     # ============================================================
+#     STRIP_PX = 6  # thickness of each strip
+#     GAP_PX = 2  # small gap between strips
+#     MAJOR_GAP_PX = 4  # big gap between groups (|g,n> block and |e,n> block)
+
+#     def to_separated_strips(
+#         mat_2d, strip_px, gap_px, major_breaks=None, major_gap_px=None
+#     ):
+#         """
+#         mat_2d: shape (n_dim, n_time)
+#         Inserts NaN rows to create visible whitespace gaps between strips,
+#         and inserts bigger NaN gaps after indices in major_breaks.
+
+#         major_breaks: list of indices k meaning "insert major gap BEFORE component k"
+#                       Example: major_breaks=[N] inserts big gap between components N-1 and N
+#         """
+#         mat_2d = np.asarray(mat_2d)
+#         n_dim, n_time = mat_2d.shape
+
+#         if major_breaks is None:
+#             major_breaks = []
+#         if major_gap_px is None:
+#             major_gap_px = gap_px
+
+#         # Build output by walking down y and placing strips
+#         rows = []
+#         for i in range(n_dim):
+#             # add strip (repeat 1 row into strip_px rows)
+#             strip = np.repeat(mat_2d[i : i + 1, :], repeats=strip_px, axis=0)
+#             rows.append(strip)
+
+#             # add gap (except after last component)
+#             if i != n_dim - 1:
+#                 next_idx = i + 1
+#                 this_gap = major_gap_px if next_idx in major_breaks else gap_px
+#                 rows.append(np.full((this_gap, n_time), np.nan, dtype=float))
+
+#         out = np.vstack(rows)
+#         return out
+
+#     # colormap that shows NaNs as white gaps
+#     cmap_strips = plt.get_cmap("magma").copy()
+#     cmap_strips.set_bad(color="white")
+
+#     def infer_major_breaks(n_dim, dims):
+#         """
+#         Automatic "big group separation" guess:
+#         If dims looks like atom=2 and field=N and n_dim == 2*N,
+#         we assume ordering is:
+#             [|g,0>, |g,1>, ..., |g,N-1>, |e,0>, |e,1>, ..., |e,N-1>]
+#         so we insert a major gap before index N.
+#         """
+#         if isinstance(dims, dict) and ("atom" in dims) and ("field" in dims):
+#             if dims["atom"] == 2 and n_dim == dims["atom"] * dims["field"]:
+#                 return [dims["field"]]
+#         return []
+
+#     def imshow_strips(
+#         ax, mat_dim_time, t0, tf, strip_px, gap_px, major_breaks, major_gap_px
+#     ):
+#         """
+#         mat_dim_time: (n_dim, n_time)
+#         """
+#         data = to_separated_strips(
+#             mat_dim_time,
+#             strip_px=strip_px,
+#             gap_px=gap_px,
+#             major_breaks=major_breaks,
+#             major_gap_px=major_gap_px,
+#         )
+
+#         extent_sep = [t0, tf, 0, data.shape[0]]
+
+#         im = ax.imshow(
+#             data,
+#             cmap=cmap_strips,
+#             extent=extent_sep,
+#             aspect="auto",
+#             interpolation="nearest",
+#         )
+#         return im, extent_sep
+
+#     nn_state_real = models_dict["model_real"](time)
+#     nn_state_imag = models_dict["model_imag"](time)
+
+#     n_dim = nn_state_real.shape[1]
+
+#     t0, tf = time[0].item(), time[-1].item()
+
+#     major_breaks = infer_major_breaks(n_dim, dims)
+
+#     # REAL PART
+#     im, extent_sep = imshow_strips(
+#         axs[0, 0],
+#         nn_state_real.detach().numpy().T,
+#         t0,
+#         tf,
+#         STRIP_PX,
+#         GAP_PX,
+#         major_breaks,
+#         MAJOR_GAP_PX,
+#     )
+#     cbar = fig.colorbar(im, ax=axs[0, 0], orientation="vertical", pad=0.15)
+#     cbar.ax.yaxis.set_tick_params(labelsize=12)
+#     cbar.ax.set_title("Component magnitude", fontsize=12)
+
+#     im, _ = imshow_strips(
+#         axs[1, 0],
+#         sim_state.real.T.detach().numpy(),
+#         t0,
+#         tf,
+#         STRIP_PX,
+#         GAP_PX,
+#         major_breaks,
+#         MAJOR_GAP_PX,
+#     )
+
+#     cbar = fig.colorbar(im, ax=axs[1, 0], orientation="vertical", pad=0.1)
+#     cbar.ax.yaxis.set_tick_params(labelsize=12)
+#     cbar.ax.set_title("Component magnitude", fontsize=12)
+
+#     im, _ = imshow_strips(
+#         axs[2, 0],
+#         abs(sim_state.real - nn_state_real).T.detach().numpy(),
+#         t0,
+#         tf,
+#         STRIP_PX,
+#         GAP_PX,
+#         major_breaks,
+#         MAJOR_GAP_PX,
+#     )
+#     cbar = fig.colorbar(im, ax=axs[2, 0], orientation="vertical", pad=0.1)
+#     cbar.ax.yaxis.set_tick_params(labelsize=12)
+#     cbar.ax.set_title("Error Magnitude", fontsize=12)
+
+#     # IMAGINARY PART
+#     im, _ = imshow_strips(
+#         axs[0, 1],
+#         nn_state_imag.detach().numpy().T,
+#         t0,
+#         tf,
+#         STRIP_PX,
+#         GAP_PX,
+#         major_breaks,
+#         MAJOR_GAP_PX,
+#     )
+#     cbar = fig.colorbar(im, ax=axs[0, 1], orientation="vertical", pad=0.1)
+#     cbar.ax.yaxis.set_tick_params(labelsize=12)
+#     cbar.ax.set_title("Component magnitude", fontsize=12)
+
+#     im, _ = imshow_strips(
+#         axs[1, 1],
+#         sim_state.imag.T.detach().numpy(),
+#         t0,
+#         tf,
+#         STRIP_PX,
+#         GAP_PX,
+#         major_breaks,
+#         MAJOR_GAP_PX,
+#     )
+#     cbar = fig.colorbar(im, ax=axs[1, 1], orientation="vertical", pad=0.1)
+#     cbar.ax.yaxis.set_tick_params(labelsize=12)
+#     cbar.ax.set_title("Component magnitude", fontsize=12)
+
+#     im, _ = imshow_strips(
+#         axs[2, 1],
+#         abs(sim_state.imag - nn_state_imag).T.detach().numpy(),
+#         t0,
+#         tf,
+#         STRIP_PX,
+#         GAP_PX,
+#         major_breaks,
+#         MAJOR_GAP_PX,
+#     )
+
+#     cbar = fig.colorbar(
+#         im, ax=axs[2, 1], orientation="vertical", pad=0.1
+#     )
+#     cbar.ax.yaxis.set_tick_params(labelsize=12)
+#     cbar.ax.set_title("Error Magnitude", fontsize=12)
+
+
+#     axs[0, 0].set_ylabel("Vector element index", fontsize=16)
+#     axs[1, 0].set_ylabel("Vector element index", fontsize=16)
+#     axs[2, 0].set_ylabel("Vector element index", fontsize=16)
+#     axs[0, 1].set_ylabel("Vector element index", fontsize=16)
+#     axs[1, 1].set_ylabel("Vector element index", fontsize=16)
+#     axs[2, 1].set_ylabel("Vector element index", fontsize=16)
+
+#     # Keep your x ticks logic (unchanged)
+#     for ax in axs.flat:
+#         ax.set_xticks(np.linspace(t0, tf, num=5))
+#         ax.set_xticklabels(np.round(np.linspace(t0, tf, num=5), 2))
+
+#     plt.tight_layout()
+#     plt.show()
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import TwoSlopeNorm, Normalize
 
 
 def plot_states(
@@ -267,167 +441,281 @@ def plot_states(
     init_state,
     picture,
     dims,
-    train_or_test,
     is_scaled,
     plot_input="state",
 ):
 
-    sim_state_train, sim_state_test, time_train, time_test = prep_plot_input(
+    sim_state, time = prep_plot_input(
         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
     )
 
     if is_scaled:
-        time_train = time_train / time_train.max()
-        time_test = time_test / time_test.max()
+        time = time / time.max()
 
-    fig, axs = set_plot_params_states()
+    # >>> Make figure taller (key for “strip readability”)
+    # If set_plot_params_states() already creates fig/axs, change its figsize there.
+    fig, axs = set_plot_params_states()  # ideally: figsize=(16, 9) or (16, 10)
 
-    if train_or_test == "train":
-        nn_state_train_real = models_dict["model_real"](time_train)
-        nn_state_train_imag = models_dict["model_imag"](time_train)
+    # ============================================================
+    # STRIPS: thicker + clearer gaps
+    # ============================================================
+    STRIP_PX = 10
+    GAP_PX = 3
+    MAJOR_GAP_PX = 8
 
-        extent = [
-            time_train[0].item(),
-            time_train[-1].item(),
-            0,
-            nn_state_train_real.shape[1],
-        ]
+    def infer_major_breaks(n_dim, dims):
+        if isinstance(dims, dict) and ("atom" in dims) and ("field" in dims):
+            if dims["atom"] == 2 and n_dim == dims["atom"] * dims["field"]:
+                return [dims["field"]]  # split between |g,n> and |e,n>
+        return []
 
-        # REAL PART
-        im = axs[0, 0].imshow(
-            nn_state_train_real.detach().numpy().T,
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
+    def build_basis_labels(n_dim, dims):
+        if isinstance(dims, dict) and dims.get("atom", None) == 2 and "field" in dims:
+            N = dims["field"]
+            if n_dim == 2 * N:
+                return [rf"$|g,{n}\rangle$" for n in range(N)] + [
+                    rf"$|e,{n}\rangle$" for n in range(N)
+                ]
+        return [f"{i}" for i in range(n_dim)]
+
+    def to_separated_strips_with_centers(
+        mat_2d, strip_px, gap_px, major_breaks=None, major_gap_px=None
+    ):
+        """
+        Returns:
+          data (with NaN gaps),
+          centers: y-coordinate (data units) at the center of each component strip,
+          breaks_y: y-coordinates (data units) for group boundary markers (optional).
+        """
+        mat_2d = np.asarray(mat_2d)
+        n_dim, n_time = mat_2d.shape
+
+        if major_breaks is None:
+            major_breaks = []
+        if major_gap_px is None:
+            major_gap_px = gap_px
+
+        rows = []
+        centers = []
+        breaks_y = []
+
+        y = 0
+        for i in range(n_dim):
+            strip = np.repeat(mat_2d[i : i + 1, :], repeats=strip_px, axis=0)
+            rows.append(strip)
+
+            centers.append(y + strip_px / 2.0)
+            y += strip_px
+
+            if i != n_dim - 1:
+                next_idx = i + 1
+                this_gap = major_gap_px if next_idx in major_breaks else gap_px
+                if next_idx in major_breaks:
+                    breaks_y.append(y + this_gap / 2.0)  # middle of the major gap
+                rows.append(np.full((this_gap, n_time), np.nan, dtype=float))
+                y += this_gap
+
+        out = np.vstack(rows)
+        return out, np.array(centers), np.array(breaks_y), out.shape[0]
+
+    def imshow_strips(
+        ax,
+        mat_dim_time,
+        t0,
+        tf,
+        strip_px,
+        gap_px,
+        major_breaks,
+        major_gap_px,
+        cmap,
+        norm,
+    ):
+        data, centers, breaks_y, H = to_separated_strips_with_centers(
+            mat_dim_time,
+            strip_px=strip_px,
+            gap_px=gap_px,
+            major_breaks=major_breaks,
+            major_gap_px=major_gap_px,
         )
-        fig.colorbar(im, ax=axs[0, 0], orientation="vertical")
 
-        im = axs[1, 0].imshow(
-            sim_state_train.real.T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
+        im = ax.imshow(
+            data,
+            cmap=cmap,
+            norm=norm,
+            extent=[t0, tf, 0, H],
             aspect="auto",
+            interpolation="nearest",
+            origin="lower",  # <-- makes y increase upward (more intuitive with ticks)
         )
-        fig.colorbar(im, ax=axs[1, 0], orientation="vertical")
+        return im, centers, breaks_y, H
 
-        im = axs[2, 0].imshow(
-            abs(sim_state_train.real - nn_state_train_real).T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[2, 0], orientation="vertical")
+    # Colormaps: diverging for signed amplitudes, sequential for abs error
+    cmap_amp = plt.get_cmap("magma").copy()
+    cmap_err = plt.get_cmap("magma").copy()
+    cmap_amp.set_bad(color="white")
+    cmap_err.set_bad(color="white")
 
-        # IMAGINARY PART
-        im = axs[0, 1].imshow(
-            nn_state_train_imag.detach().numpy().T,
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[0, 1], orientation="vertical")
+    nn_state_real = models_dict["model_real"](time)
+    nn_state_imag = models_dict["model_imag"](time)
 
-        im = axs[1, 1].imshow(
-            sim_state_train.imag.T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[1, 1], orientation="vertical")
+    n_dim = nn_state_real.shape[1]
+    t0, tf = time[0].item(), time[-1].item()
 
-        im = axs[2, 1].imshow(
-            abs(sim_state_train.imag - nn_state_train_imag).T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
+    major_breaks = infer_major_breaks(n_dim, dims)
+    basis_labels = build_basis_labels(n_dim, dims)
 
-        fig.colorbar(im, ax=axs[2, 1], orientation="vertical")
+    # ---------- Shared color scaling (so “top 2 rows” really share one colorbar)
+    nnR = nn_state_real.detach().cpu().numpy()
+    nnI = nn_state_imag.detach().cpu().numpy()
+    simR = sim_state.real.detach().cpu().numpy()
+    simI = sim_state.imag.detach().cpu().numpy()
 
-        for ax in axs.flat:
-            ax.set_xticks(
-                np.linspace(time_train[0].item(), time_train[-1].item(), num=5)
-            )
-            ax.set_xticklabels(
-                np.round(
-                    np.linspace(time_train[0].item(), time_train[-1].item(), num=5), 2
-                )
-            )
+    amp_max = np.max(np.abs(np.concatenate([nnR, nnI, simR, simI], axis=None)))
+    amp_norm = TwoSlopeNorm(vcenter=0.0, vmin=-amp_max, vmax=amp_max)
 
-        plt.tight_layout()
-        plt.show()
+    errI = np.abs(simI - nnI)
+    errR = np.abs(simR - nnR)
+    err_max = np.max(np.concatenate([errR, errI], axis=None))
+    err_norm = Normalize(vmin=0.0, vmax=err_max)
 
+    # ---------- Plot all panels
+    im00, centers, breaks_y, H = imshow_strips(
+        axs[0, 0],
+        nnR.T,
+        t0,
+        tf,
+        STRIP_PX,
+        GAP_PX,
+        major_breaks,
+        MAJOR_GAP_PX,
+        cmap=cmap_amp,
+        norm=amp_norm,
+    )
+    im01, _, _, _ = imshow_strips(
+        axs[0, 1],
+        nnI.T,
+        t0,
+        tf,
+        STRIP_PX,
+        GAP_PX,
+        major_breaks,
+        MAJOR_GAP_PX,
+        cmap=cmap_amp,
+        norm=amp_norm,
+    )
+
+    im10, _, _, _ = imshow_strips(
+        axs[1, 0],
+        simR.T,
+        t0,
+        tf,
+        STRIP_PX,
+        GAP_PX,
+        major_breaks,
+        MAJOR_GAP_PX,
+        cmap=cmap_amp,
+        norm=amp_norm,
+    )
+    im11, _, _, _ = imshow_strips(
+        axs[1, 1],
+        simI.T,
+        t0,
+        tf,
+        STRIP_PX,
+        GAP_PX,
+        major_breaks,
+        MAJOR_GAP_PX,
+        cmap=cmap_amp,
+        norm=amp_norm,
+    )
+
+    im20, _, _, _ = imshow_strips(
+        axs[2, 0],
+        errR.T,
+        t0,
+        tf,
+        STRIP_PX,
+        GAP_PX,
+        major_breaks,
+        MAJOR_GAP_PX,
+        cmap=cmap_err,
+        norm=err_norm,
+    )
+    im21, _, _, _ = imshow_strips(
+        axs[2, 1],
+        errI.T,
+        t0,
+        tf,
+        STRIP_PX,
+        GAP_PX,
+        major_breaks,
+        MAJOR_GAP_PX,
+        cmap=cmap_err,
+        norm=err_norm,
+    )
+
+    # ---------- Y ticks: centers of strips
+    # If many components, label sparsely but keep minor ticks for every strip
+    if n_dim <= 12:
+        major_idx = list(range(n_dim))
     else:
-        nn_state_test_real = models_dict["model_real"](time_test)
-        nn_state_test_imag = models_dict["model_imag"](time_test)
+        step = max(1, n_dim // 8)
+        major_idx = list(range(0, n_dim, step))
 
-        extent = [
-            time_test[0].item(),
-            time_test[-1].item(),
-            0,
-            nn_state_test_real.shape[1],
-        ]
+    major_ticks = [centers[i] for i in major_idx]
+    major_labels = [basis_labels[i] for i in major_idx]
 
-        # REAL PART
-        im = axs[0, 0].imshow(
-            nn_state_test_real.detach().numpy().T,
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[0, 0], orientation="vertical")
+    for r in range(3):
+        axs[r, 0].set_yticks(major_ticks)
+        axs[r, 0].set_yticklabels(major_labels, fontsize=11)
+        axs[r, 0].set_yticks(centers, minor=True)
+        axs[r, 0].tick_params(axis="y", which="minor", length=2)
 
-        im = axs[1, 0].imshow(
-            sim_state_test.real.T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[1, 0], orientation="vertical")
+        # Right column: keep tick marks but hide labels (less clutter)
+        axs[r, 1].set_yticks(major_ticks)
+        axs[r, 1].set_yticklabels([])
+        axs[r, 1].set_yticks(centers, minor=True)
+        axs[r, 1].tick_params(axis="y", which="minor", length=2)
 
-        im = axs[2, 0].imshow(
-            abs(sim_state_test.real - nn_state_test_real).T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[2, 0], orientation="vertical")
+        # Optional: mark the group boundary (if any)
+        for yb in breaks_y:
+            axs[r, 0].axhline(yb, color="k", lw=0.6, alpha=0.25)
+            axs[r, 1].axhline(yb, color="k", lw=0.6, alpha=0.25)
 
-        # IMAGINARY PART
-        im = axs[0, 1].imshow(
-            nn_state_test_imag.detach().numpy().T,
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[0, 1], orientation="vertical")
+    # ---------- Axis labels (only once, clean)
+    for r in range(3):
+        axs[r, 0].set_ylabel(r"Basis component $|s,n\rangle$", fontsize=14)
 
-        im = axs[1, 1].imshow(
-            sim_state_test.imag.T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[1, 1], orientation="vertical")
+    # X ticks (keep yours)
+    for ax in axs.flat:
+        ax.set_xticks(np.linspace(t0, tf, num=5))
+        ax.set_xticklabels(np.round(np.linspace(t0, tf, num=5), 2))
 
-        im = axs[2, 1].imshow(
-            abs(sim_state_test.imag - nn_state_test_imag).T.detach().numpy(),
-            cmap="magma",
-            extent=extent,
-            aspect="auto",
-        )
-        fig.colorbar(im, ax=axs[2, 1], orientation="vertical")
+    # ---------- Shared colorbars (2 total)
+    amp_sm = plt.cm.ScalarMappable(norm=amp_norm, cmap=cmap_amp)
+    err_sm = plt.cm.ScalarMappable(norm=err_norm, cmap=cmap_err)
 
-        for ax in axs.flat:
-            ax.set_xticks(np.linspace(time_test[0].item(), time_test[-1].item(), num=5))
-            ax.set_xticklabels(
-                np.round(
-                    np.linspace(time_test[0].item(), time_test[-1].item(), num=5), 2
-                )
-            )
+    cbar_amp = fig.colorbar(
+        amp_sm,
+        ax=[axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]],
+        orientation="vertical",
+        fraction=0.025,
+        pad=0.02,
+    )
+    cbar_amp.set_label("Component value (signed)", fontsize=12)
 
-        plt.tight_layout()
-        plt.show()
+    cbar_err = fig.colorbar(
+        err_sm,
+        ax=[axs[2, 0], axs[2, 1]],
+        orientation="vertical",
+        fraction=0.025,
+        pad=0.02,
+    )
+    cbar_err.set_label("Absolute error", fontsize=12)
+
+    # If you use constrained_layout in set_plot_params_states(), prefer fig.tight_layout OFF.
+    # plt.tight_layout()
+    plt.show()
 
 
 def plot_loss_functions(loss_dict: dict, skip_param: int):
@@ -438,15 +726,25 @@ def plot_loss_functions(loss_dict: dict, skip_param: int):
         loss_dict: Dictionary containing the loss functions.
     """
 
+    labels = [
+        r"\(L\)",
+        r"\(L_{\mathrm{ic}}\)",
+        r"\(L_{\mathrm{norm}}\)",
+        r"\(L_{\mathrm{data}}\)",
+        r"\(L_{\mathrm{eq}}\)",
+    ]
+
     epochs = len(loss_dict["total_loss"])
     skip_epochs = int(epochs // skip_param)
 
     plt.figure(dpi=300)
+    i = 0
     for key, value in loss_dict.items():
         if "loss" in key:
-            plt.plot(value[0:-1:skip_epochs], label=key)
+            plt.plot(value[0:-1:skip_epochs], label=labels[i])
+            i += 1
     plt.yscale("log")
-    plt.xlabel("Epochs")
+    plt.xlabel(r"Epochs (\(\times\)100)")
     plt.ylabel("Loss")
     plt.grid(alpha=0.4)
     plt.legend(
@@ -473,24 +771,25 @@ def plot_learned_param(
     epochs = len(loss_dict["total_loss"])
     skip_epochs = int(epochs // skip_param)
 
-    learned_params = np.array(loss_dict["learned_param"])
+    learned_params = np.array(loss_dict["learned_param"])  # (raw_epochs, n_params)
 
-    # true_param_line = [true_param] * len(loss_dict["learned_param"][0:-1:skip_epochs])
+    # -----------------------------
+    # Main (downsampled) plot data
+    # -----------------------------
+    y_ds = learned_params[0:-1:skip_epochs, :]
+    x_ds = np.arange(len(y_ds))
+    true_param_line_g1 = [true_param] * len(x_ds)
+    true_param_line_g2 = [0] * len(x_ds)
 
     plt.figure(dpi=300)
+    ax = plt.gca()
 
-    if picture == "rabi":
+    if picture == "atom":
+        labels = [r"Learned Parameter"]
+    elif picture == "rabi":
         labels = [r"\(g_1\)", r"\(g_2\)", r"\(g_3\)", r"\(g_4\)"]
-
-        for param in range(learned_params.shape[1]):
-            plt.plot(learned_params[0:-1:skip_epochs, param], label=labels[param])
-
     elif picture == "rabi2":
         labels = [r"\(g_1\) (Jaynes-Cummings)", r"\(g_2\) (Counter-Rotating)"]
-
-        for param in range(learned_params.shape[1]):
-            plt.plot(learned_params[0:-1:skip_epochs, param], label=labels[param])
-
     elif picture == "geral":
         labels = [
             r"\(g_1\) (Jaynes-Cummings)",
@@ -499,14 +798,76 @@ def plot_learned_param(
             r"\(g_0\) (Classical Field)",
         ]
 
-        for param in range(learned_params.shape[1]):
-            plt.plot(learned_params[0:-1:skip_epochs, param], label=labels[param])
+    for param in range(y_ds.shape[1]):
+        ax.plot(x_ds, y_ds[:, param], label=labels[param])
 
-    # plt.plot(true_param_line, label="True Parameter", linestyle="--")
-    plt.xlabel("Epochs")
-    plt.ylabel("Parameter Value")
-    plt.legend(fontsize=6, facecolor="lightgray", edgecolor="gray", framealpha=0.9)
-    plt.grid(alpha=0.4)
+    true_line_g1 = ax.plot(
+        x_ds, true_param_line_g1, label=r"True Parameter", linestyle="--"
+    )
+    # true_line_g2 = ax.plot(x_ds, true_param_line_g2, label="True Counter-Rotating Parameter", linestyle="--")
+
+    ax.set_xlabel(r"Epochs (\(\times\)100)")
+    ax.set_ylabel("Parameter Value")
+    ax.legend(
+        fontsize=6,
+        facecolor="lightgray",
+        edgecolor="gray",
+        framealpha=0.9,
+        # bbox_to_anchor=(1.02, 1.0),
+        bbox_to_anchor=(0.5, 0.25),  # vertical center
+    )
+    ax.grid(alpha=0.4)
+
+    # ==================================================
+    # INSET: last 100 *RAW* epochs (no downsampling)
+    # ==================================================
+    N_LAST = 1000
+    raw_epochs = learned_params.shape[0]
+
+    if raw_epochs >= 5:
+        n_last = min(N_LAST, raw_epochs)
+
+        x_raw = np.arange(raw_epochs - n_last, raw_epochs)
+        # x_raw = np.round(x_raw / 100)  # convert to "epochs x100" scale
+        # x_raw = x_raw.astype(int)
+        # x_raw = np.arange(n_last)  # local inset scale
+        y_raw = learned_params[-n_last:, :]  # RAW values
+
+        axins = inset_axes(
+            ax,
+            width="40%",
+            height="50%",
+            # loc="upper right",
+            bbox_to_anchor=(0.01, 0.05, 0.9, 0.9),
+            bbox_transform=ax.transAxes,
+            borderpad=1.1,
+        )
+
+        for param in range(y_raw.shape[1]):
+            axins.plot(x_raw, y_raw[:, param])
+
+        axins.axhline(true_param, linestyle="--", linewidth=1)
+        axins.axhline(
+            true_param, linestyle="--", linewidth=1, color=true_line_g1[0].get_color()
+        )
+        # axins.axhline(
+        #     0, linestyle="--", linewidth=1, color=true_line_g2[0].get_color()
+        # )
+
+        # tight zoom around convergence
+        ymin = min(y_raw.min(), true_param) - 5e-1 / 5
+        ymax = max(y_raw.max(), true_param) + 5e-2
+        axins.set_xlim(x_raw[0], x_raw[-1])
+        # axins.set_ylim(ymin, ymax)
+        axins.set_xlabel(r"Epochs", fontsize=6)
+        axins.set_ylabel(r"Parameter Value", fontsize=6)
+        axins.set_xticks(
+            [x_raw[0], x_raw[0] + (raw_epochs - x_raw[0]) // 2, raw_epochs]
+        )
+
+        axins.grid(alpha=0.3)
+        axins.tick_params(labelsize=6)
+
     plt.show()
 
 
@@ -518,36 +879,31 @@ def plot_fidelity(
     init_state,
     picture,
     dims,
-    train_or_test,
     is_scaled,
     plot_input="state",
 ):
 
-    sim_state_train, sim_state_test, time_train, time_test = prep_plot_input(
+    sim_state, time = prep_plot_input(
         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
     )
 
     if is_scaled:
-        time_train = time_train / time_train.max()
-        time_test = time_test / time_test.max()
+        time = time / time.max()
 
-    if train_or_test == "train":
-        nn_state_train_real = models_dict["model_real"](time_train)
-        nn_state_train_imag = models_dict["model_imag"](time_train)
+    nn_state_real = models_dict["model_real"](time)
+    nn_state_imag = models_dict["model_imag"](time)
 
-        nn_state_train = nn_state_train_real + 1j * nn_state_train_imag
+    nn_state = nn_state_real + 1j * nn_state_imag
 
-        nn_state_train_conj = nn_state_train.conj()
+    nn_state_conj = nn_state.conj()
 
-        inner_product = torch.sum(nn_state_train_conj * sim_state_train, dim=1)
+    inner_product = torch.sum(nn_state_conj * sim_state, dim=1)
 
-        fidelity = torch.abs(inner_product) ** 2
+    fidelity = torch.abs(inner_product) ** 2
 
-        plt.figure(dpi=300)
-        plt.plot(
-            time_train.detach().numpy(), fidelity.detach().numpy(), label="Fidelity"
-        )
-        plt.xlabel(r"\(gt\)")
-        plt.ylabel(r"\(\mathcal{F}(\tilde{\psi}(t), \psi(t))\)")
-        plt.grid(alpha=0.4)
-        plt.show()
+    plt.figure(dpi=300)
+    plt.plot(time.detach().numpy(), fidelity.detach().numpy(), label="Fidelity")
+    plt.xlabel(r"\(gt\)")
+    plt.ylabel(r"\(\mathcal{F}(|\tilde{\psi}(t)\rangle, |\psi(t)\rangle)\)")
+    plt.grid(alpha=0.4)
+    plt.show()

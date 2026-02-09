@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import pickle
 
 def mse(y_pred, y_true):
     return torch.mean((y_pred - y_true) ** 2)
@@ -39,3 +40,13 @@ class TANH(nn.Module):
 
     def forward(self, x):
         return torch.tanh(x)
+    
+    
+def save_results(results_dict, filename="results_dict.pkl"):
+    with open(filename, "wb") as f:
+        pickle.dump(results_dict, f)
+        
+def load_results(filename="results_dict.pkl"):
+    with open(filename, "rb") as f:
+        results_dict = pickle.load(f)
+    return results_dict

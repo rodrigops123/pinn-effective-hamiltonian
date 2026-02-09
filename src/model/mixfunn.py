@@ -86,7 +86,7 @@ class Linear(nn.Module):
         return f
 
 
-functions = [Sin(), Cos(), Id(), Tanh(), ExpN(), Sqrt(), Log()]
+functions = [Sin(), Cos(), Id(), ]#ExpN()]#Tanh()]#, ExpN(), Sqrt(), Log()]
 L = len(functions)
 
 
