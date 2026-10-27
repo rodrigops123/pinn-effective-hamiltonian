@@ -1,211 +1,111 @@
+"""Training data: exact QuTiP solutions of the Schrödinger equation."""
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+
 import numpy as np
 import qutip
 import torch
 
+from pinn_jc.physics.frames import Frame, rotate_to_interaction_frame
+from pinn_jc.physics.hamiltonians import Hamiltonian, get_picture
+from pinn_jc.physics.operators import observables
+from pinn_jc.physics.states import initial_state
 from pinn_jc.settings import DEVICE
 
 
-def to_interaction_frame_numpy(
-    y_lab: np.ndarray, tlist: np.ndarray, params: dict, dims: dict
-) -> np.ndarray:
+@dataclass(frozen=True)
+class SimulationData:
+    """Simulated trajectory, as torch tensors on ``settings.DEVICE``.
+
+    ``states`` are in ``simulation_frame``, additionally multiplied by exp(+i H0 t)
+    when ``rotated_to_interaction_frame`` is set. That rotation only yields the
+    interaction picture for lab-frame data (see bug B in tests/).
     """
-    y_lab: (T, D) complex amplitudes in the product basis |atom>⊗|n>
-    returns y_ip: (T, D) where y_ip(t) = exp(+i H0 t) y_lab(t)
-    with H0 = wc a†a + wa σ+σ-.
 
-    Basis ordering assumed from qutip.tensor(atom, field):
-      [|0,0>, |0,1>, ..., |0,Nf-1>, |1,0>, ..., |1,Nf-1>]
-    where atom index 0 is ground, 1 is excited.
+    states: torch.Tensor  # (T, D) complex64
+    expectations: torch.Tensor  # (T, n_observables) float64, frame independent
+    observables: torch.Tensor  # (n_observables, D, D) complex64: a†a, σ+σ-
+    hamiltonian: torch.Tensor  # (D, D) complex64, of `simulated_picture`
+    time: torch.Tensor  # (T, 1) float32, requires_grad
+    picture: str  # requested picture
+    simulated_picture: str  # picture actually integrated
+    simulation_frame: Frame
+    rotated_to_interaction_frame: bool
+
+
+def simulation_picture(picture: str, params: Mapping[str, float]) -> str:
+    """Picture to integrate for the requested one.
+
+    On resonance and without counter-rotating coupling, the lab-frame models are
+    integrated in the Jaynes-Cummings interaction picture instead, which avoids the
+    stiffness of ωc, ωa >> g.
     """
-    wc = float(params["wc"])
-    wa = float(params["wa"])
-    Nf = int(dims["field"])
-
-    n = np.arange(Nf, dtype=np.float64)  # 0..Nf-1
-    E_g = wc * n  # ground manifold energies
-    E_e = wc * n + wa  # excited manifold energies
-    E = np.concatenate([E_g, E_e], axis=0)  # (D,)
-
-    # phases(t,k) = exp(+i E_k t)
-    phases = np.exp(1j * np.outer(tlist, E)).astype(np.complex64)  # (T, D)
-    return (phases * y_lab).astype(np.complex64)
+    resonant = abs(float(params["wc"]) - float(params["wa"])) < 1e-12
+    no_counter_rotating = float(params.get("g2", 0.0)) == 0.0
+    if picture in ("full", "rabi2", "rabi") and no_counter_rotating and resonant:
+        return "interaction"
+    return picture
 
 
-def choose_init_state(init_state: str, dims: dict) -> qutip.Qobj:
-
-    if init_state == "fock_superposition":
-        psi0a = qutip.tensor(
-            qutip.basis(dims["atom"], 0),
-            (
-                qutip.basis(dims["field"], 0)
-                + qutip.basis(dims["field"], 1)
-                + qutip.basis(dims["field"], 2)
-            ),
-        )
-        psi0 = psi0a.unit()
-
-    if init_state == "fock":
-        psi0a = qutip.tensor(
-            qutip.basis(dims["atom"], 1), qutip.basis(dims["field"], 0)
-        )
-        psi0 = psi0a.unit()
-
-    if init_state == "coherent":
-        alpha = 1.0
-        psi0a = qutip.tensor(
-            qutip.basis(dims["atom"], 0), qutip.coherent(dims["field"], alpha)
-        )
-        psi0 = psi0a.unit()
-
-    if init_state == "squeeze":
-        r = 1.0
-        psi0a = qutip.tensor(
-            qutip.basis(dims["atom"], 0),
-            qutip.squeeze(dims["field"], r) * qutip.basis(dims["field"], 0),
-        )
-        psi0 = psi0a.unit()
-
-    return psi0
-
-
-def chooses_hamiltonian(picture: str, params: dict, dims: dict) -> qutip.Qobj:
-    """
-    picture options:
-      - "interaction": JC interaction-picture at resonance (no fast free terms)
-      - "atom": rotating at ωa for BOTH subsystems -> detuning term (wc-wa) a†a + interactions (time-independent JC)
-      - "full": lab-frame JC: wc a†a + wa σ+σ- + g1(JC)
-      - "rabi2": lab-frame split: g1(JC) + g2(counter-rotating)
-      - others unchanged
-    """
-    a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
-    sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
-    sx = qutip.tensor(qutip.sigmax(), qutip.qeye(dims["field"]))
-
-    if picture == "interaction":
-        # JC interaction picture at resonance: H_I = g1 (a†σ- + aσ+)
-        hamiltonian = params["g1"] * (a.dag() * sm + a * sm.dag())
-
-    elif picture == "atom":
-        # Rotating frame at ωa applied to BOTH (a†a + σ+σ-):
-        # H = (wc - wa) a†a + g1 (a†σ- + aσ+)
-        delta = params["wc"] - params["wa"]
-        hamiltonian = delta * (a.dag() * a) + params["g1"] * (
-            a.dag() * sm + a * sm.dag()
-        )
-
-    elif picture == "full":
-        # Lab JC with σ+σ- (projector). Keep this consistent everywhere.
-        hamiltonian = (
-            params["wc"] * (a.dag() * a)
-            + params["wa"] * (sm.dag() * sm)
-            + params["g1"] * (a.dag() * sm + a * sm.dag())
-        )
-
-    elif picture == "rabi":
-        hamiltonian = (
-            params["wc"] * a.dag() * a
-            + params["wa"] * sm.dag() * sm
-            + params["g1"] * a.dag() * sm
-            + params["g2"] * a * sm.dag()
-            + params["g3"] * a * sm
-            + params["g4"] * a.dag() * sm.dag()
-        )
-
-    elif picture == "rabi2":
-        hamiltonian = (
-            params["wc"] * (a.dag() * a)
-            + params["wa"] * (sm.dag() * sm)
-            + params["g1"] * (a.dag() * sm + a * sm.dag())
-            + params["g2"] * (a * sm + a.dag() * sm.dag())
-        )
-
-    elif picture == "geral":
-        hamiltonian = (
-            params["wc"] * a.dag() * a
-            + params["wa"] * sm.dag() * sm
-            + params["g1"] * (a.dag() * sm + a * sm.dag())  # jaynes-cummings
-            + params["g2"] * (a * sm + a.dag() * sm.dag())  # rabi
-            + params["g3"] * (a + a.dag()) ** 2 * sx  # two-photon
-            + params["g0"] * sx  # classic field
-        )
-
-    else:
-        raise ValueError(
-            "Invalid picture. Choose from 'interaction', 'atom', 'full', 'rabi', 'rabi2', or 'geral'."
-        )
-
-    return hamiltonian
-
-
-def data_jc(
-    params: dict,
+def simulate(
+    params: Mapping[str, float],
     tfinal: float,
     n_time_steps: int,
     init_state: str,
     picture: str = "interaction",
-    dims: dict[str, int] | None = None,
-    state_frame: str = "lab",  # "lab" or "interaction"
-):
-    """
-    Generates data for the Jaynes-Cummings model.
+    dims: Mapping[str, int] | None = None,
+    state_frame: str = "lab",
+) -> SimulationData:
+    """Simulate the atom-cavity system on ``n_time_steps`` points of [0, tfinal].
 
     state_frame:
-      - "interaction": returns y_train(t) = exp(+iH0 t) |ψ_lab(t)>
-        with H0 = wc a†a + wa σ+σ-
-        (removes fast carrier phases)
-      - "lab": returns the raw Schrödinger-picture state
+      - "lab": the states as integrated, in the simulated picture's frame
+      - "interaction": the states multiplied by exp(+i H0 t), H0 = ωc a†a + ωa σ+σ-
     """
-
+    if state_frame not in ("lab", "interaction"):
+        raise ValueError(
+            f"state_frame must be 'lab' or 'interaction', got {state_frame!r}"
+        )
     if dims is None:
         dims = {"atom": 2, "field": 2}
 
-    tlist = np.linspace(0, tfinal, n_time_steps)
+    times = np.linspace(0, tfinal, n_time_steps)
+    simulated_picture = simulation_picture(picture, params)
+    hamiltonian = Hamiltonian(simulated_picture, dims).to_qobj(params)
+    measured = observables(dims)
 
-    a = qutip.tensor(qutip.qeye(dims["atom"]), qutip.destroy(dims["field"]))
-    sm = qutip.tensor(qutip.destroy(dims["atom"]), qutip.qeye(dims["field"]))
-
-    field_op = a.dag() * a
-    atom_op = sm.dag() * sm
-    operators_list = [field_op, atom_op]
-
-    # --- High-impact: if you're in the JC regime and on-resonance, simulate directly
-    # in the interaction picture to avoid stiffness from wc,wa >> g.
-    picture_sim = picture
-    if picture in ("full", "rabi2", "rabi") and float(params.get("g2", 0.0)) == 0.0:
-        if abs(float(params["wc"]) - float(params["wa"])) < 1e-12:
-            picture_sim = "interaction"
-
-    hamiltonian = chooses_hamiltonian(picture_sim, params, dims)
-    psi0 = choose_init_state(init_state, dims)
-
-    options = qutip.Options(store_states=True)
     result = qutip.sesolve(
-        hamiltonian, psi0, tlist, e_ops=operators_list, options=options
+        hamiltonian,
+        initial_state(init_state, dims),
+        times,
+        e_ops=measured,
+        options={"store_states": True},
     )
 
-    operators_list_np = np.array(
-        [op.full() for op in operators_list], dtype=np.complex64
+    states = np.array(
+        [state.full().ravel() for state in result.states], dtype=np.complex64
     )
-    y_train = np.array(
-        [result.states[i].full().flatten() for i in range(n_time_steps)],
-        dtype=np.complex64,
+    rotate = state_frame == "interaction"
+    if rotate:
+        states = rotate_to_interaction_frame(states, times, params, dims)
+
+    return SimulationData(
+        states=torch.tensor(states, device=DEVICE),
+        expectations=torch.tensor(np.array(result.expect), device=DEVICE).transpose(
+            0, 1
+        ),
+        observables=torch.tensor(
+            np.array([op.full() for op in measured], dtype=np.complex64), device=DEVICE
+        ),
+        hamiltonian=torch.tensor(
+            hamiltonian.full(), dtype=torch.complex64, device=DEVICE
+        ),
+        time=torch.tensor(
+            times, dtype=torch.float32, requires_grad=True, device=DEVICE
+        ).reshape(-1, 1),
+        picture=picture,
+        simulated_picture=simulated_picture,
+        simulation_frame=get_picture(simulated_picture).frame,
+        rotated_to_interaction_frame=rotate,
     )
-
-    # --- Key change: strip the fast free-evolution phases (carrier).
-    if state_frame == "interaction":
-        y_train = to_interaction_frame_numpy(y_train, tlist, params, dims)
-
-    expect = np.array(result.expect)
-
-    # torch conversions
-    hamiltonian_t = torch.tensor(
-        hamiltonian.full(), dtype=torch.complex64, device=DEVICE
-    )
-    operators_list_t = torch.tensor(operators_list_np, device=DEVICE)
-    y_train_t = torch.tensor(y_train, device=DEVICE)
-    expect_t = torch.tensor(expect, device=DEVICE).transpose(0, 1)
-    time_t = torch.tensor(
-        tlist, dtype=torch.float32, requires_grad=True, device=DEVICE
-    ).reshape(-1, 1)
-
-    return y_train_t, expect_t, hamiltonian_t, operators_list_t, time_t
