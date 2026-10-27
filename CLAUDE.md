@@ -8,16 +8,18 @@ Physics Informed Neural Networks (PINN) research project for learning quantum me
 
 ## Setup and Running
 
-Python 3.12. Install the locked environment and the package (src layout, package `pinn_jc`):
+Package management is fully uv-based (Python 3.12 from `.python-version`; exact versions in `uv.lock`; src layout, package `pinn_jc`). Do not use pip directly:
 ```bash
-pip install -r requirements-lock.txt && pip install -e . --no-deps
-pre-commit install   # ruff check/format + nbstripout
+uv sync --all-groups          # dev tools + notebook kernel
+uv run pre-commit install     # ruff check/format + nbstripout
+uv add <pkg> / uv add --group dev <pkg>   # never hand-edit pins; uv updates pyproject + uv.lock
 ```
+Run every command through `uv run` (e.g. `uv run pytest`, `uv run python scripts/migrate_pickles.py`).
 
 Run the tests (golden characterization + physics invariants; known bugs are strict xfails):
 ```bash
-pytest
-UPDATE_GOLDEN=1 pytest tests/test_golden.py   # only after an intentional behaviour change
+uv run pytest
+UPDATE_GOLDEN=1 uv run pytest tests/test_golden.py   # only after an intentional behaviour change
 ```
 
 Results are not tracked in git (`saved_artifacts/` is ignored). Legacy `.pkl` results were
