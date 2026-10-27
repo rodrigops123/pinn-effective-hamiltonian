@@ -50,15 +50,15 @@ src/pinn_jc/visualization/plots.py
 
 **`src/pinn_jc/physics/`** — Single source of truth for the physics. `hamiltonians.py` defines every picture (`interaction`, `atom`, `full`, `rabi`, `rabi2`, `rabi2_ip`, `geral`) once as a tuple of `Term(coefficient, operator, frequency)`; `Hamiltonian(picture, dims)` builds operators once and emits both `to_qobj(params)` (simulation) and `to_torch(params, couplings, time)` (ODE loss; `couplings` follow `Picture.couplings` order). `operators.py` names the operators (basis: `qutip.tensor(atom, field)`, atom index 1 = excited, σ- = destroy(atom)). `states.py` is the validated initial-state registry (`fock`, `fock_superposition`, `coherent`, `squeeze`). `frames.py` has the `Frame` enum and the exp(+iH0 t) rotation. Add new physics here, never inline in the trainer.
 
-**`src/pinn_jc/data/simulate.py`** — `simulate(...) -> SimulationData` integrates with QuTiP. On resonance with g2 = 0, lab-frame pictures are integrated in the interaction picture; `SimulationData.simulated_picture` / `simulation_frame` / `rotated_to_interaction_frame` record what was done.
+**`src/pinn_jc/data/simulate.py`** — `simulate(..., frame=None) -> SimulationData` integrates with QuTiP and returns the states in `frame` (default: the requested picture's own frame, so they satisfy that picture's ODE). Integration may use a different picture for accuracy (`rabi2_ip` → `rabi2`; resonant `full`/`rabi2` with g2 = 0 → `interaction`), recorded in `simulated_picture`; frames are converted exactly with diagonal phases (`physics/frames.py`). Invariant, tested in `tests/test_physics_consistency.py`: training data must satisfy the ODE of the Hamiltonian being trained.
 
 **`src/pinn_jc/training/losses.py`** — Four PINN loss components:
 - `loss_ic`: initial condition (state at t=0)
 - `loss_norm`: quantum normalization ||ψ||² = 1
-- `loss_data`: matches expectation values of operators
-- `loss_ode`: enforces Schrödinger equation via autodifferentiation
+- `loss_data`: MAE of expectation values at fixed time indices (`trainer.data_indices`: first instant if `n_points_loss` is None/1, else a fixed random subset drawn once with a private generator)
+- `loss_ode`: residual of dψ/dτ = -i T H ψ via autodifferentiation (rows of `nn_state` are ψ(τ); H acts as H ψ; T = `time_scale`, 1 unless `is_scaled`)
 
-**`src/pinn_jc/training/trainer.py`** — Training loops. `train()` uses a fixed Hamiltonian; `train_with_parameter()` jointly learns coupling constants (g1, g2, etc.) alongside the state.
+**`src/pinn_jc/training/trainer.py`** — Training loops. `train()` uses a fixed Hamiltonian; `train_with_parameter()` jointly learns coupling constants (g1, g2, etc.) alongside the state; picture `rabi2` is trained as `rabi2_ip` with data simulated in that frame.
 
 **`src/pinn_jc/models/mlp.py`** — Standard multi-layer fully connected network. Real and imaginary parts of the complex quantum state are handled by separate networks.
 
