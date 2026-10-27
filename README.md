@@ -9,11 +9,12 @@ This is a code base used to train a neural network based on the Physics Informed
 |___scripts/
 |   |___migrate_pickles.py    # convert legacy result pickles to state_dict format
 |___src/pinn_jc/
-|   |___settings.py           # global defaults (device, seed, network defaults)
+|   |___settings.py           # device
+|   |___reproducibility.py    # set_seed
 |   |___physics/              # operators, Hamiltonian registry, initial states, frames
 |   |___data/simulate.py      # QuTiP simulation of the training data
 |   |___models/               # MLP, complex state network, learnable couplings
-|   |___training/             # loss functions and training loops
+|   |___training/             # experiment config, losses, training loop, history
 |   |___visualization/        # plotting
 |   |___io/legacy.py          # load and convert results from earlier code versions
 |___tests/

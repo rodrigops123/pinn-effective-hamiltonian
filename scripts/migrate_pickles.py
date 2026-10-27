@@ -140,7 +140,7 @@ def migrate_file(pkl_path: Path, dst_root: Path) -> None:
         "legacy_sha256": sha256(pkl_path),
         "verified_from_weights": {
             **describe_network(first_run["models"]["model_real"].state_dict()),
-            "activation": "sin (model_train_params default; not stored in the pickle)",
+            "activation": "sine (the default of the code at the time; not stored in the pickle)",
             "n_runs": len(runs),
         },
         "stored_params": first_run.get("params"),

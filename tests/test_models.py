@@ -3,6 +3,7 @@ import torch
 
 from pinn_jc.io.legacy import LegacyNeuralNet, as_models
 from pinn_jc.models import MLP, ComplexStateNet, Couplings, Sine
+from pinn_jc.training.config import ModelConfig
 from pinn_jc.training.trainer import build_models
 
 TIME = torch.linspace(0, 5, 17).reshape(-1, 1)
@@ -72,7 +73,7 @@ def test_build_models_reproduces_the_legacy_initialisation():
 
     torch.manual_seed(7)
     state, couplings = build_models(
-        4, n_couplings=2, neural_net_params={"units": [16, 16], "activation": Sine()}
+        4, n_couplings=2, model=ModelConfig(hidden_units=(16, 16))
     )
 
     torch.testing.assert_close(couplings.raw, legacy_real.param, rtol=0, atol=0)
