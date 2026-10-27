@@ -6,30 +6,31 @@ import logging
 import numpy as np
 import torch
 
-from conftest import seed_everything
 from pinn_jc.training.config import ExperimentConfig
 from pinn_jc.training.losses import loss_data
-from pinn_jc.training.trainer import data_indices, train, train_with_parameter
+from pinn_jc.training.trainer import data_indices, train
 
-TRAINING = dict(
-    params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
-    tfinal=2 * np.pi,
-    n_time_steps=20,
-    init_state="fock",
-    picture="atom",
-    dims={"atom": 2, "field": 2},
-    n_parameter=1,
-)
+
+def _config(**overrides):
+    sections = {
+        "physics": {
+            "picture": "atom",
+            "params": {"wc": 1.0, "wa": 1.0, "g1": 1.0},
+            "init_state": "fock",
+        },
+        "data": {"tfinal": 2 * np.pi, "n_time_steps": 30, "n_data_points": 30},
+        "training": {"epochs": 6, "log_every": 2, "progress_bar": False},
+    }
+    for section, values in overrides.items():
+        sections[section] = {**sections[section], **values}
+    return ExperimentConfig.from_dict(sections)
 
 
 def test_training_with_scaled_time_runs_and_stays_finite():
     """Bug C: is_scaled=True referenced an undefined variable."""
-    seed_everything(0)
-    _, history = train_with_parameter(
-        epochs=3, n_points_loss=20, is_scaled=True, **TRAINING
-    )
+    history = train(_config(data={"scale_time": True}, training={"seed": 0})).history
 
-    assert all(np.isfinite(history["total_loss"]))
+    assert all(np.isfinite(history.total_loss))
 
 
 def test_training_does_not_reset_the_global_rng():
@@ -37,8 +38,7 @@ def test_training_does_not_reset_the_global_rng():
     the same RNG state regardless of their seed."""
     final_draws = []
     for seed in (0, 1):
-        seed_everything(seed)
-        train_with_parameter(epochs=2, n_points_loss=10, is_scaled=False, **TRAINING)
+        train(_config(data={"n_data_points": 10}, training={"seed": seed}))
         final_draws.append(torch.rand(1))
 
     assert not torch.equal(*final_draws)
@@ -70,21 +70,6 @@ def test_loss_data_is_the_mae_of_expectation_values():
 
     assert loss_data(state, operators, expect, torch.tensor([0])).item() == 0.5
     np.testing.assert_allclose(loss_data(state, operators, expect).item(), 0.32)
-
-
-def _config(**overrides):
-    sections = {
-        "physics": {
-            "picture": "atom",
-            "params": {"wc": 1.0, "wa": 1.0, "g1": 1.0},
-            "init_state": "fock",
-        },
-        "data": {"tfinal": 2 * np.pi, "n_time_steps": 30, "n_data_points": 30},
-        "training": {"epochs": 6, "log_every": 2, "progress_bar": False},
-    }
-    for section, values in overrides.items():
-        sections[section] = {**sections[section], **values}
-    return ExperimentConfig.from_dict(sections)
 
 
 def test_validation_window_is_held_out_and_evaluated():

@@ -96,7 +96,7 @@ def _finite_difference_residual(states, time, hamiltonian):
 
 
 # (picture, frame requested from simulate, picture whose ODE the states must satisfy)
-# The first group mirrors train_with_parameter; the rest check frame conversions
+# The first group mirrors the training data of each picture; the rest check frame conversions
 # against the Hamiltonian of the target frame. Regression for bug B (data rotated
 # into a frame that did not match the ODE).
 FRAME_CASES = {

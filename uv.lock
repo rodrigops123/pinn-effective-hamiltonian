@@ -1129,6 +1129,7 @@ source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
+    { name = "pyyaml" },
     { name = "qutip" },
     { name = "scienceplots" },
     { name = "scipy" },
@@ -1151,6 +1152,7 @@ notebooks = [
 requires-dist = [
     { name = "matplotlib", specifier = "~=3.9.4" },
     { name = "numpy", specifier = "~=2.0.2" },
+    { name = "pyyaml", specifier = "~=6.0" },
     { name = "qutip", specifier = "~=5.0.4" },
     { name = "scienceplots", specifier = "~=2.1.1" },
     { name = "scipy", specifier = "~=1.13.1" },

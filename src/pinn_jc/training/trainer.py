@@ -11,13 +11,7 @@ from pinn_jc.data.simulate import simulate
 from pinn_jc.models import MLP, ComplexStateNet, Couplings, Sine
 from pinn_jc.physics import Hamiltonian
 from pinn_jc.reproducibility import set_seed
-from pinn_jc.training.config import (
-    DataConfig,
-    ExperimentConfig,
-    ModelConfig,
-    PhysicsConfig,
-    TrainingConfig,
-)
+from pinn_jc.training.config import ExperimentConfig, ModelConfig
 from pinn_jc.training.history import TrainingHistory, TrainingResult
 from pinn_jc.training.losses import loss_data, loss_ic, loss_norm, loss_ode
 
@@ -200,46 +194,3 @@ def _log_epoch(epoch, epochs, history):
         history.loss_ode[-1],
         couplings,
     )
-
-
-def train_with_parameter(
-    epochs,
-    params,
-    tfinal,
-    n_time_steps,
-    init_state,
-    picture,
-    dims,
-    n_points_loss,
-    n_parameter,
-    is_scaled,
-    positivity="softplus",
-):
-    """Pre-Phase-5 interface, kept for the notebooks until Phase 6: learns the
-    couplings on the whole time grid and returns ``(models, loss_dict)``.
-
-    Picture "rabi2" is learned in its interaction picture "rabi2_ip".
-    """
-    config = ExperimentConfig(
-        physics=PhysicsConfig(
-            picture="rabi2_ip" if picture == "rabi2" else picture,
-            params=params,
-            init_state=init_state,
-            dims=dims,
-            positivity=positivity,
-        ),
-        data=DataConfig(
-            tfinal=tfinal,
-            n_time_steps=n_time_steps,
-            n_data_points=n_points_loss,
-            scale_time=is_scaled,
-        ),
-        training=TrainingConfig(epochs=epochs),
-    )
-    if n_parameter != config.physics.n_couplings:
-        raise ValueError(
-            f"picture {config.physics.picture!r} has {config.physics.n_couplings} "
-            f"coupling(s), got n_parameter={n_parameter}"
-        )
-    result = train(config)
-    return result.models, result.history.to_legacy_dict()

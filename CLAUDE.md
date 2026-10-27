@@ -26,10 +26,12 @@ Results are not tracked in git (`saved_artifacts/` is ignored). Legacy `.pkl` re
 converted to `saved_artifacts/runs/<name>/` (state_dict + history.npz + meta.json) by
 `scripts/migrate_pickles.py`.
 
-The main entry points are Jupyter notebooks in `apps/`:
-- `apps/train_models.ipynb` — standard training workflow
-- `apps/train_rabi_model.ipynb` — Rabi model training
-- `apps/generate_plots.ipynb` — results visualization
+Experiments are YAML files in `configs/` (one per experiment; `experiment:` section with name, description and explicit seeds, plus the `ExperimentConfig` sections). Train them with:
+```bash
+uv run python scripts/train.py configs/atom_fock.yaml                     # all seeds, full epochs
+uv run python scripts/train.py configs/atom_fock.yaml --epochs 5 --seeds 1 --allow-dirty   # quick check
+```
+The runner refuses uncommitted changes to tracked files unless `--allow-dirty`, so stored results map to a commit. Output: `saved_artifacts/runs/<name>/<UTC timestamp>_<commit>/` with `experiment.yaml`, `meta.json` (git commit + dirty flag, package versions, command), `train.log`, `summary.json` (per-seed final metrics, coupling mean/std) and `seed_<s>/` (`config.yaml`, `model.pt`, `history.npz`, `metrics.json`). Reload a run with `pinn_jc.io.runs.load_run(dir)`. Figures: `apps/generate_plots*.ipynb` (legacy pickles; rewritten in Phase 7). Never add training notebooks: add a config.
 
 ## Architecture
 
@@ -58,11 +60,13 @@ src/pinn_jc/visualization/plots.py
 - `loss_data`: MAE of expectation values at fixed time indices (`trainer.data_indices`: first instant if `n_points_loss` is None/1, else a fixed random subset drawn once with a private generator)
 - `loss_ode`: residual of dψ/dτ = -i T H ψ via autodifferentiation (rows of `nn_state` are ψ(τ); H acts as H ψ; T = `time_scale`, 1 unless `is_scaled`)
 
-**`src/pinn_jc/training/`** — `config.py`: frozen, validated dataclasses `ExperimentConfig(physics, data, training, model)` with `to_dict`/`from_dict` (`PhysicsConfig`: picture the PINN learns in, true params, init state, dims, `learn_couplings`, `positivity`; `DataConfig`: grid, `n_data_points`, `validation_fraction` = held-out final stretch of time, `scale_time`; `ModelConfig`; `TrainingConfig`: epochs, lr, `LossWeights`, `seed`, `log_every`). `trainer.py`: `train(config) -> TrainingResult(config, state, couplings, history)`, one loop for learned or fixed couplings, validation fidelity / ⟨O⟩ MAE every `log_every` epochs, progress via `logging` (enable with `logging.basicConfig(level=logging.INFO)`). `history.py`: `TrainingHistory` (per-epoch unweighted terms, weighted `total_loss`, couplings, validation metrics; `to_arrays`, `to_legacy_dict`). `train_with_parameter(...)` is a thin pre-Phase-5 wrapper kept for the notebooks until Phase 6 (maps `rabi2` → `rabi2_ip`). Seeds: `pinn_jc.reproducibility.set_seed`.
+**`src/pinn_jc/training/`** — `config.py`: frozen, validated dataclasses `ExperimentConfig(physics, data, training, model)` with `to_dict`/`from_dict` (`PhysicsConfig`: picture the PINN learns in, true params, init state, dims, `learn_couplings`, `positivity`; `DataConfig`: grid, `n_data_points`, `validation_fraction` = held-out final stretch of time, `scale_time`; `ModelConfig`; `TrainingConfig`: epochs, lr, `LossWeights`, `seed`, `log_every`). `trainer.py`: `train(config) -> TrainingResult(config, state, couplings, history)`, one loop for learned or fixed couplings, validation fidelity / ⟨O⟩ MAE every `log_every` epochs, progress via `logging` (enable with `logging.basicConfig(level=logging.INFO)`). `history.py`: `TrainingHistory` (per-epoch unweighted terms, weighted `total_loss`, couplings, validation metrics; `to_arrays`, `to_legacy_dict`). The learning picture is explicit: write `rabi2_ip` (not `rabi2`) to learn the Rabi model in its interaction picture. Seeds: `pinn_jc.reproducibility.set_seed`.
 
 **`src/pinn_jc/models/`** — `MLP` (fully connected, `Sine` activation by default), `ComplexStateNet(real, imag)` giving ψ(t) = real(t) + i·imag(t), and `Couplings(n, positivity="softplus"|"abs")` holding the learnable g's (`.raw` parameter, θ ~ U(0,1) at init). Physics parameters never live inside a network. `trainer.build_models` constructs real net → couplings → imag net; this order reproduces the legacy RNG stream, so do not reorder it.
 
 **`src/pinn_jc/settings.py`** — Only `DEVICE="cpu"`; every other default lives in the config dataclasses.
+
+**`src/pinn_jc/experiments.py` / `src/pinn_jc/io/runs.py`** — `Experiment` (YAML ↔ dataclass, `with_overrides`), `run_experiment` (one run per seed, logs always written at INFO), `save_run` / `load_run` (checkpoint format 1: `{"format", "state", "couplings"}`; `load_run` rebuilds the modules exactly without consuming the caller's RNG).
 
 **`src/pinn_jc/io/legacy.py`** — Everything pre-Phase-4: `LegacyNeuralNet` (old class, only for unpickling), `load_legacy_pickle` (remaps old class paths), `models_from_legacy_state_dicts` (migrated `{"model_real","model_imag"}` weights → current modules) and `as_models` (accepts new `{"state","couplings"}` or legacy `models_dict`; used by the plots).
 
