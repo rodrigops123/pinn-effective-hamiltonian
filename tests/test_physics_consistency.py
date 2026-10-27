@@ -2,8 +2,6 @@
 
 The exact state is built in closed form with ``torch.matrix_exp`` so that the real
 ``loss_ode`` (autograd time derivative) is exercised, not a finite-difference proxy.
-Tests marked ``xfail(strict=True)`` document known bugs; they will start failing
-(XPASS) as soon as the bug is fixed, which forces the marker to be removed.
 """
 
 import numpy as np
@@ -65,13 +63,8 @@ def test_loss_ode_vanishes_on_exact_solution(picture):
     assert loss_ode(hamiltonian, psi, time).item() < ODE_TOLERANCE
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="Bug A: loss_ode computes psi @ H (= H^T psi), wrong for the complex rabi2_ip "
-    "Hamiltonian. Fix in Phase 3.",
-)
 def test_loss_ode_vanishes_on_exact_interaction_picture_solution():
+    """Regression for bug A: loss_ode applied H^T, wrong for the complex rabi2_ip."""
     params = {"wc": 1.3, "wa": 1.0, "g1": 0.7, "g2": 0.4}
     time = _time_grid()
     psi0 = _to_torch(initial_state("fock", DIMS)).ravel()
@@ -102,54 +95,81 @@ def _finite_difference_residual(states, time, hamiltonian):
     return np.abs(dpsi_dt + 1j * h_psi).mean(axis=0).sum()
 
 
-# Mirrors what train_with_parameter does: data in the "interaction" frame, ODE with
-# picture "rabi2_ip" when picture == "rabi2", otherwise the requested picture.
+# (picture, frame requested from simulate, picture whose ODE the states must satisfy)
+# The first group mirrors train_with_parameter; the rest check frame conversions
+# against the Hamiltonian of the target frame. Regression for bug B (data rotated
+# into a frame that did not match the ODE).
 FRAME_CASES = {
-    "rabi2_detuned_usc": (
-        "rabi2",
+    "atom_resonant": ("atom", None, "atom", {"wc": 1.0, "wa": 1.0, "g1": 1.0}),
+    "atom_detuned": ("atom", None, "atom", {"wc": 1.3, "wa": 1.0, "g1": 1.0}),
+    "rabi2_ip_resonant_jc": (
         "rabi2_ip",
-        {"wc": 1.0, "wa": 1.2, "g1": 1.0, "g2": 1.0},
-        [1.0, 1.0],
-    ),
-    "atom_resonant": pytest.param(
-        "atom",
-        "atom",
-        {"wc": 1.0, "wa": 1.0, "g1": 1.0},
-        [1.0],
-        marks=pytest.mark.xfail(
-            strict=True,
-            raises=AssertionError,
-            reason="Bug B: the 'atom' picture is already a rotating frame, yet the data is "
-            "rotated again by exp(+iH0 t). Fix in Phase 3.",
-        ),
-    ),
-    "rabi2_resonant_jc": pytest.param(
-        "rabi2",
+        None,
         "rabi2_ip",
         {"wc": 1.0, "wa": 1.0, "g1": 1.0, "g2": 0.0},
-        [1.0, 0.0],
-        marks=pytest.mark.xfail(
-            strict=True,
-            raises=AssertionError,
-            reason="Bug B: simulate() integrates in the interaction picture, then "
-            "rotates again by exp(+iH0 t). Fix in Phase 3.",
-        ),
+    ),
+    "rabi2_ip_detuned_usc": (
+        "rabi2_ip",
+        None,
+        "rabi2_ip",
+        {"wc": 1.0, "wa": 1.2, "g1": 1.0, "g2": 1.0},
+    ),
+    "full_resonant_in_lab": ("full", None, "full", {"wc": 1.0, "wa": 1.0, "g1": 0.5}),
+    "full_detuned_in_rotating": (
+        "full",
+        "rotating",
+        "atom",
+        {"wc": 1.3, "wa": 1.0, "g1": 0.5},
+    ),
+    "full_resonant_in_interaction": (
+        "full",
+        "interaction",
+        "interaction",
+        {"wc": 1.0, "wa": 1.0, "g1": 0.5},
+    ),
+    "rabi2_lab_in_interaction": (
+        "rabi2",
+        "interaction",
+        "rabi2_ip",
+        {"wc": 1.0, "wa": 1.2, "g1": 0.5, "g2": 0.3},
     ),
 }
 
 
 @pytest.mark.parametrize(
-    "picture, picture_train, params, couplings",
+    "picture, frame, ode_picture, params",
     list(FRAME_CASES.values()),
     ids=list(FRAME_CASES),
 )
-def test_training_data_satisfies_training_hamiltonian(
-    picture, picture_train, params, couplings
+def test_simulated_states_satisfy_the_ode_of_their_frame(
+    picture, frame, ode_picture, params
 ):
     dims = {"atom": 2, "field": 4}
-    data = simulate(params, 2.0, 4001, "fock", picture, dims, state_frame="interaction")
-    hamiltonian = Hamiltonian(picture_train, dims).to_torch(
-        params, torch.tensor(couplings), data.time.detach()
+    data = simulate(params, 2.0, 4001, "fock", picture, dims, frame=frame)
+    hamiltonian = Hamiltonian(ode_picture, dims).to_torch(
+        params, time=data.time.detach()
     )
 
     assert _finite_difference_residual(data.states, data.time, hamiltonian) < 1e-2
+
+
+@pytest.mark.parametrize("picture", ["atom", "rabi2_ip"])
+def test_loss_ode_vanishes_on_exact_solution_in_scaled_time(picture):
+    """The network sees τ = t / T; loss_ode then enforces dψ/dτ = -i T H(t) ψ."""
+    params = {"wc": 1.3, "wa": 1.0, "g1": 0.7, "g2": 0.4}
+    total_time = 2 * np.pi
+    tau = torch.linspace(0, 1, 200).reshape(-1, 1).requires_grad_(True)
+    time = tau * total_time
+    psi0 = _to_torch(initial_state("fock", DIMS)).ravel()
+    lab = picture == "rabi2_ip"
+    psi = _exact_state(
+        _to_torch(Hamiltonian("rabi2" if lab else picture, DIMS).to_qobj(params)),
+        psi0,
+        time,
+        frame_hamiltonian=_to_torch(_free_hamiltonian(params, DIMS)) if lab else None,
+    )
+    couplings = torch.tensor([0.7, 0.4] if lab else [0.7])
+
+    hamiltonian = Hamiltonian(picture, DIMS).to_torch(params, couplings, time.detach())
+
+    assert loss_ode(hamiltonian, psi, tau, time_scale=total_time).item() < ODE_TOLERANCE

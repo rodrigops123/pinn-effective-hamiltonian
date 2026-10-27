@@ -29,6 +29,21 @@ def train_test_split(data, test_size=0.2):
     return train_data, test_data
 
 
+def data_indices(n_samples, n_points, seed=settings.SEED):
+    """Time indices at which expectation values are fitted.
+
+    None or 1 selects the first instant only; otherwise ``n_points`` instants are
+    drawn once, with a private generator, and kept fixed for the whole training
+    (fixed measurement times). All instants are used when n_points >= n_samples.
+    """
+    if n_points is None or n_points == 1:
+        return torch.tensor([0])
+    if n_points >= n_samples:
+        return None
+    generator = torch.Generator().manual_seed(seed)
+    return torch.randperm(n_samples, generator=generator)[:n_points]
+
+
 def instantiate_model(
     output_dim,
     input_dim=1,
@@ -80,11 +95,13 @@ def train(
         dims=dims,
     )
     sim_state, sim_expect = data.states, data.expectations
-    hamiltonian, operator, time = data.hamiltonian, data.observables, data.time
+    operator, time = data.observables, data.time
 
     sim_state_train, _ = train_test_split(sim_state, test_size=0.2)
     sim_expect_train, _ = train_test_split(sim_expect, test_size=0.2)
     time_train, _ = train_test_split(time, test_size=0.2)
+    hamiltonian = Hamiltonian(picture, dims).to_torch(params, time=time_train)
+    indices = data_indices(len(time_train), n_points_loss)
 
     loss_dict = {
         "total_loss": [],
@@ -103,9 +120,7 @@ def train(
         # Compute losses
         loss_ic_value = loss_ic(nn_state, sim_state_train)
         loss_norm_value = loss_norm(nn_state)
-        loss_data_value = loss_data(
-            nn_state, operator, sim_expect_train, n_points=n_points_loss
-        )
+        loss_data_value = loss_data(nn_state, operator, sim_expect_train, indices)
         loss_ode_value = loss_ode(hamiltonian, nn_state, time_train)
 
         # Total loss
@@ -156,41 +171,32 @@ def train_with_parameter(
         amsgrad=True,
     )
 
-    # --- KEY: generate training state in the interaction frame (slow envelope)
+    # "rabi2" is learned in its interaction picture, which removes the fast carrier
+    # phases; the data is simulated in that picture's frame so that it satisfies the
+    # ODE being enforced.
+    picture_train = "rabi2_ip" if picture == "rabi2" else picture
+    hamiltonian = Hamiltonian(picture_train, dims)
+
     data = simulate(
         params=params,
         tfinal=tfinal,
         n_time_steps=n_time_steps,
         init_state=init_state,
-        picture=picture,
+        picture=picture_train,
         dims=dims,
-        state_frame="interaction",
     )
     sim_state, sim_expect = data.states, data.expectations
     operator, time = data.observables, data.time
+    indices = data_indices(len(time), n_points_loss)
 
-    # sim_state_train, _ = train_test_split(sim_state, test_size=0.2)
-    # sim_expect_train, _ = train_test_split(sim_expect, test_size=0.2)
-    # time_train, _ = train_test_split(time, test_size=0.2)
-
+    # The network sees τ = t / T; the ODE becomes dψ/dτ = -i T H(t) ψ, where the
+    # Hamiltonian keeps the physical time.
     time_scale = 1.0
+    network_time = time
     if is_scaled:
-        # Bug C (fixed in Phase 3): time_train is undefined and the loop uses `time`.
-        tmax = time_train.max().detach()  # noqa: F821
-        time_scale = float(tmax.item())  # d/dτ = tmax * d/dt
-        time_train = (time_train.detach() / tmax).requires_grad_(True)  # noqa: F821, F841
-
-    # Train Hamiltonian picture:
-    # If you asked for "rabi2" (lab), we train the interaction-picture ODE instead.
-    picture_train = picture
-    if picture == "rabi2":
-        picture_train = "rabi2_ip"
-    hamiltonian = Hamiltonian(picture_train, dims)
-
-    # Tiny regularization for g2 only when the DATA is JC-like (true g2 = 0).
-    lambda_g2 = (
-        1e-4 if float(params.get("g2", 0.0)) == 0.0 and n_parameter >= 2 else 0.0
-    )
+        tmax = time.max().detach()
+        time_scale = float(tmax.item())
+        network_time = (time.detach() / tmax).requires_grad_(True)
 
     loss_dict = {
         "total_loss": [],
@@ -204,31 +210,24 @@ def train_with_parameter(
     for _ in tqdm(range(epochs)):
         optimizer.zero_grad()
 
-        nn_state_real = model_real(time)
-        nn_state_imag = model_imag(time)
+        nn_state_real = model_real(network_time)
+        nn_state_imag = model_imag(network_time)
         nn_state = nn_state_real + 1j * nn_state_imag
 
         # Smooth positivity (better gradients than abs)
         coupling_strength = F.softplus(model_real.param)
 
         # Hamiltonian (possibly time-dependent)
-        H_ = hamiltonian.to_torch(params, couplings=coupling_strength, time=time)
+        H_ = hamiltonian.to_torch(
+            params, couplings=coupling_strength, time=time.detach()
+        )
 
         loss_ic_value = loss_ic(nn_state, sim_state)
         loss_norm_value = loss_norm(nn_state)
-        loss_data_value = loss_data(
-            nn_state, operator, sim_expect, n_points=n_points_loss
-        )
-        loss_ode_value = loss_ode(H_, nn_state, time, time_scale=time_scale)
+        loss_data_value = loss_data(nn_state, operator, sim_expect, indices)
+        loss_ode_value = loss_ode(H_, nn_state, network_time, time_scale=time_scale)
 
-        # Bug F (decided in Phase 3): the regulariser is computed but never added.
-        reg = 0.0
-        if lambda_g2 > 0.0:
-            reg = lambda_g2 * coupling_strength[1].pow(2)  # noqa: F841
-
-        total_loss = (
-            loss_ic_value + loss_norm_value + loss_data_value + loss_ode_value
-        )  # + reg
+        total_loss = loss_ic_value + loss_norm_value + loss_data_value + loss_ode_value
 
         total_loss.backward()
         optimizer.step()

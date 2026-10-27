@@ -1,9 +1,9 @@
 """Characterization tests: pin the current numerical behaviour of the pipeline.
 
-They do not claim the behaviour is *correct* (see test_physics_consistency.py and
-test_known_bugs.py for that). They exist so that the structural refactor phases can
-prove they changed nothing. Intentional changes (e.g. the Phase 3 bug fixes) must
-regenerate the affected golden files with UPDATE_GOLDEN=1 in the same commit.
+They do not claim the behaviour is *correct* (the physics and regression tests do
+that). They exist so that structural refactors can prove they changed nothing.
+Intentional changes must regenerate the affected golden files with UPDATE_GOLDEN=1
+in the same commit, and say why in the commit message.
 """
 
 import numpy as np
@@ -44,21 +44,20 @@ SIMULATION_CASES = {
 }
 
 
-@pytest.mark.parametrize("state_frame", ["lab", "interaction"])
+@pytest.mark.parametrize("frame", ["own", "interaction"])
 @pytest.mark.parametrize("case", sorted(SIMULATION_CASES))
-def test_simulate(golden, case, state_frame):
+def test_simulate(golden, case, frame):
     data = simulate(
         tfinal=2 * np.pi,
         n_time_steps=50,
-        state_frame=state_frame,
+        frame=None if frame == "own" else frame,
         **SIMULATION_CASES[case],
     )
     golden(
-        f"simulate__{case}__{state_frame}",
+        f"simulate__{case}__{frame}",
         {
             "state": data.states.numpy(),
             "expect": data.expectations.numpy(),
-            "hamiltonian": data.hamiltonian.numpy(),
             "operators": data.observables.numpy(),
             "time": data.time.detach().numpy(),
         },

@@ -1,24 +1,25 @@
 import torch
 
-from pinn_jc import settings
-
 
 def mae(y_pred, y_true):
     return torch.mean(abs(y_pred - y_true))
 
 
 def loss_ode(H_, nn_state, tempo, time_scale: float = 1.0):
+    """Residual of the Schrödinger equation dψ/dτ = -i T H ψ, with τ = t / T.
+
+    nn_state: (N, D) complex, row n is ψ(τ_n); tempo: (N, 1) network input τ;
+    H_: (D, D) or (N, D, D); time_scale: T (1 when the network sees physical time).
+    """
     assert tempo.requires_grad, "tempo must have requires_grad=True"
 
-    state = nn_state  # (N, D) complex
+    state = nn_state
     N, D = state.shape
 
-    # Compute i * time_scale * (psi H)  (row-vector convention)
     if H_.dim() == 2:
-        H_psi = 1j * float(time_scale) * (state @ H_)  # (N, D)
+        h_psi = torch.einsum("ij,nj->ni", H_, state)
     elif H_.dim() == 3:
-        # H_: (N,D,D) -> batch matmul
-        H_psi = 1j * float(time_scale) * torch.bmm(state.unsqueeze(1), H_).squeeze(1)
+        h_psi = torch.einsum("nij,nj->ni", H_, state)
     else:
         raise ValueError("H_ must have shape (D,D) or (N,D,D)")
 
@@ -42,7 +43,7 @@ def loss_ode(H_, nn_state, tempo, time_scale: float = 1.0):
     dv_dt = grads[D:].permute(1, 0)  # (N, D)
     dpsi_dt = du_dt + 1j * dv_dt  # (N, D)
 
-    residual = dpsi_dt + H_psi
+    residual = dpsi_dt + 1j * float(time_scale) * h_psi
     return residual.abs().mean(dim=0).sum()
 
 
@@ -57,39 +58,14 @@ def loss_norm(nn_state):
     return loss
 
 
-def loss_data(nn_state, operators, sim_expect, n_points=None):
+def loss_data(nn_state, operators, sim_expect, indices=None):
+    """MAE between predicted and simulated expectation values.
+
+    operators: (n_observables, D, D); sim_expect: (N, n_observables);
+    indices: time indices to compare at (all of them when None).
     """
-    Computes the loss using n_points randomly selected from the training set.
-    If n_points is None or 1, uses only the first instant (as in the original loss_data).
-    operators: list or tensor of shape (n_observables, D, D)
-    sim_expect: shape (n_time_steps, n_observables)
-    """
-    if n_points is None or n_points == 1:
-        # Use only the first instant for all observables
-        expected_values_nn = []
-        for op in operators:
-            ev = (torch.conj(nn_state[0]) @ (op @ nn_state[0])).real
-            expected_values_nn.append(ev)
-        expected_values_nn = torch.stack(expected_values_nn)
-        loss = torch.mean(torch.log(torch.cosh(expected_values_nn - sim_expect[0])))
-        return loss
-
-    torch.manual_seed(settings.SEED)
-
-    n_samples = nn_state.shape[0]
-    indices = torch.randperm(n_samples)[:n_points]
-
-    selected_nn = nn_state[indices]  # (n_points, D)
-    selected_sim = sim_expect[indices]  # (n_points, n_observables)
-
-    expected_values_nn = []
-    for op in operators:
-        # For each observable, compute <psi|O|psi> for all selected states
-        ev = torch.einsum("ni,ij,nj->n", selected_nn.conj(), op, selected_nn).real
-        expected_values_nn.append(ev)
-    expected_values_nn = torch.stack(
-        expected_values_nn, dim=1
-    )  # (n_points, n_observables)
-
-    loss = mae(expected_values_nn, selected_sim)
-    return loss
+    if indices is not None:
+        nn_state = nn_state[indices]
+        sim_expect = sim_expect[indices]
+    predicted = torch.einsum("ni,kij,nj->nk", nn_state.conj(), operators, nn_state).real
+    return mae(predicted, sim_expect)
