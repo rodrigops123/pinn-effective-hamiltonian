@@ -170,263 +170,25 @@ def plot_expected_values(
 
 
 def set_plot_params_states():
-    fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(12, 8), sharex=True, dpi=300)
-    axs[0, 0].set_title(r"\(|\tilde{\psi}_R (t)\rangle\)", fontsize=18)
-    axs[0, 0].yaxis.set_ticks([])  # Remove y-ticks
-    axs[0, 0].yaxis.set_ticklabels([])
+    # Layout: 2 rows (Real / Imag) × 3 cols (NN prediction | Simulation | Error)
+    # Each panel: x-axis = basis components, y-axis = time
+    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(30, 10), sharex=True, sharey=True, dpi=300)
 
-    axs[1, 0].set_title(r"\(|\psi_R(t)\rangle\)", fontsize=18)
-    axs[1, 0].yaxis.set_ticks([])  # Remove y-ticks
-    axs[1, 0].yaxis.set_ticklabels([])
-
-    axs[2, 0].set_title(
-        r"abs(\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle\))", fontsize=18
+    # Row 0: Real parts
+    axs[0, 0].set_title(r"\(|\tilde{\psi}_R (t)\rangle\)", fontsize=26)
+    axs[0, 1].set_title(r"\(|\psi_R(t)\rangle\)", fontsize=26)
+    axs[0, 2].set_title(
+        r"abs(\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle\))", fontsize=26
     )
-    axs[2, 0].yaxis.set_ticks([])  # Remove y-ticks
-    axs[2, 0].yaxis.set_ticklabels([])
 
-    axs[0, 1].set_title(r"\(|\tilde{\psi}_I(t)\rangle\)", fontsize=18)
-    axs[0, 1].yaxis.set_ticks([])  # Remove y-ticks
-    axs[0, 1].yaxis.set_ticklabels([])
-
-    axs[1, 1].set_title(r"\(|\psi_I(t)\rangle\)", fontsize=18)
-    axs[1, 1].yaxis.set_ticks([])  # Remove y-ticks
-    axs[1, 1].yaxis.set_ticklabels([])
-
-    axs[2, 1].set_title(
-        r"abs(\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle\))", fontsize=18
+    # Row 1: Imaginary parts
+    axs[1, 0].set_title(r"\(|\tilde{\psi}_I(t)\rangle\)", fontsize=26)
+    axs[1, 1].set_title(r"\(|\psi_I(t)\rangle\)", fontsize=26)
+    axs[1, 2].set_title(
+        r"abs(\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle\))", fontsize=26
     )
-    axs[2, 1].yaxis.set_ticks([])  # Remove y-ticks
-    axs[2, 1].yaxis.set_ticklabels([])
-
-    axs[2, 0].set_xlabel(r"\(gt\)", fontsize=16)
-    axs[2, 1].set_xlabel(r"\(gt\)", fontsize=16)
-
-    axs[2, 0].xaxis.set_tick_params(labelsize=14)
-    axs[2, 1].xaxis.set_tick_params(labelsize=14)
 
     return fig, axs
-
-
-# def plot_states(
-#     models_dict,
-#     params,
-#     tfinal,
-#     n_time_steps,
-#     init_state,
-#     picture,
-#     dims,
-#     is_scaled,
-#     plot_input="state",
-# ):
-
-#     sim_state, time = prep_plot_input(
-#         params, tfinal, n_time_steps, init_state, picture, dims, plot_input
-#     )
-
-#     if is_scaled:
-#         time = time / time.max()
-
-#     fig, axs = set_plot_params_states()
-
-#     # ============================================================
-#     # NEW: render each vector component as a "strip", with REAL gaps
-#     # ============================================================
-#     STRIP_PX = 6  # thickness of each strip
-#     GAP_PX = 2  # small gap between strips
-#     MAJOR_GAP_PX = 4  # big gap between groups (|g,n> block and |e,n> block)
-
-#     def to_separated_strips(
-#         mat_2d, strip_px, gap_px, major_breaks=None, major_gap_px=None
-#     ):
-#         """
-#         mat_2d: shape (n_dim, n_time)
-#         Inserts NaN rows to create visible whitespace gaps between strips,
-#         and inserts bigger NaN gaps after indices in major_breaks.
-
-#         major_breaks: list of indices k meaning "insert major gap BEFORE component k"
-#                       Example: major_breaks=[N] inserts big gap between components N-1 and N
-#         """
-#         mat_2d = np.asarray(mat_2d)
-#         n_dim, n_time = mat_2d.shape
-
-#         if major_breaks is None:
-#             major_breaks = []
-#         if major_gap_px is None:
-#             major_gap_px = gap_px
-
-#         # Build output by walking down y and placing strips
-#         rows = []
-#         for i in range(n_dim):
-#             # add strip (repeat 1 row into strip_px rows)
-#             strip = np.repeat(mat_2d[i : i + 1, :], repeats=strip_px, axis=0)
-#             rows.append(strip)
-
-#             # add gap (except after last component)
-#             if i != n_dim - 1:
-#                 next_idx = i + 1
-#                 this_gap = major_gap_px if next_idx in major_breaks else gap_px
-#                 rows.append(np.full((this_gap, n_time), np.nan, dtype=float))
-
-#         out = np.vstack(rows)
-#         return out
-
-#     # colormap that shows NaNs as white gaps
-#     cmap_strips = plt.get_cmap("magma").copy()
-#     cmap_strips.set_bad(color="white")
-
-#     def infer_major_breaks(n_dim, dims):
-#         """
-#         Automatic "big group separation" guess:
-#         If dims looks like atom=2 and field=N and n_dim == 2*N,
-#         we assume ordering is:
-#             [|g,0>, |g,1>, ..., |g,N-1>, |e,0>, |e,1>, ..., |e,N-1>]
-#         so we insert a major gap before index N.
-#         """
-#         if isinstance(dims, dict) and ("atom" in dims) and ("field" in dims):
-#             if dims["atom"] == 2 and n_dim == dims["atom"] * dims["field"]:
-#                 return [dims["field"]]
-#         return []
-
-#     def imshow_strips(
-#         ax, mat_dim_time, t0, tf, strip_px, gap_px, major_breaks, major_gap_px
-#     ):
-#         """
-#         mat_dim_time: (n_dim, n_time)
-#         """
-#         data = to_separated_strips(
-#             mat_dim_time,
-#             strip_px=strip_px,
-#             gap_px=gap_px,
-#             major_breaks=major_breaks,
-#             major_gap_px=major_gap_px,
-#         )
-
-#         extent_sep = [t0, tf, 0, data.shape[0]]
-
-#         im = ax.imshow(
-#             data,
-#             cmap=cmap_strips,
-#             extent=extent_sep,
-#             aspect="auto",
-#             interpolation="nearest",
-#         )
-#         return im, extent_sep
-
-#     nn_state_real = models_dict["model_real"](time)
-#     nn_state_imag = models_dict["model_imag"](time)
-
-#     n_dim = nn_state_real.shape[1]
-
-#     t0, tf = time[0].item(), time[-1].item()
-
-#     major_breaks = infer_major_breaks(n_dim, dims)
-
-#     # REAL PART
-#     im, extent_sep = imshow_strips(
-#         axs[0, 0],
-#         nn_state_real.detach().numpy().T,
-#         t0,
-#         tf,
-#         STRIP_PX,
-#         GAP_PX,
-#         major_breaks,
-#         MAJOR_GAP_PX,
-#     )
-#     cbar = fig.colorbar(im, ax=axs[0, 0], orientation="vertical", pad=0.15)
-#     cbar.ax.yaxis.set_tick_params(labelsize=12)
-#     cbar.ax.set_title("Component magnitude", fontsize=12)
-
-#     im, _ = imshow_strips(
-#         axs[1, 0],
-#         sim_state.real.T.detach().numpy(),
-#         t0,
-#         tf,
-#         STRIP_PX,
-#         GAP_PX,
-#         major_breaks,
-#         MAJOR_GAP_PX,
-#     )
-
-#     cbar = fig.colorbar(im, ax=axs[1, 0], orientation="vertical", pad=0.1)
-#     cbar.ax.yaxis.set_tick_params(labelsize=12)
-#     cbar.ax.set_title("Component magnitude", fontsize=12)
-
-#     im, _ = imshow_strips(
-#         axs[2, 0],
-#         abs(sim_state.real - nn_state_real).T.detach().numpy(),
-#         t0,
-#         tf,
-#         STRIP_PX,
-#         GAP_PX,
-#         major_breaks,
-#         MAJOR_GAP_PX,
-#     )
-#     cbar = fig.colorbar(im, ax=axs[2, 0], orientation="vertical", pad=0.1)
-#     cbar.ax.yaxis.set_tick_params(labelsize=12)
-#     cbar.ax.set_title("Error Magnitude", fontsize=12)
-
-#     # IMAGINARY PART
-#     im, _ = imshow_strips(
-#         axs[0, 1],
-#         nn_state_imag.detach().numpy().T,
-#         t0,
-#         tf,
-#         STRIP_PX,
-#         GAP_PX,
-#         major_breaks,
-#         MAJOR_GAP_PX,
-#     )
-#     cbar = fig.colorbar(im, ax=axs[0, 1], orientation="vertical", pad=0.1)
-#     cbar.ax.yaxis.set_tick_params(labelsize=12)
-#     cbar.ax.set_title("Component magnitude", fontsize=12)
-
-#     im, _ = imshow_strips(
-#         axs[1, 1],
-#         sim_state.imag.T.detach().numpy(),
-#         t0,
-#         tf,
-#         STRIP_PX,
-#         GAP_PX,
-#         major_breaks,
-#         MAJOR_GAP_PX,
-#     )
-#     cbar = fig.colorbar(im, ax=axs[1, 1], orientation="vertical", pad=0.1)
-#     cbar.ax.yaxis.set_tick_params(labelsize=12)
-#     cbar.ax.set_title("Component magnitude", fontsize=12)
-
-#     im, _ = imshow_strips(
-#         axs[2, 1],
-#         abs(sim_state.imag - nn_state_imag).T.detach().numpy(),
-#         t0,
-#         tf,
-#         STRIP_PX,
-#         GAP_PX,
-#         major_breaks,
-#         MAJOR_GAP_PX,
-#     )
-
-#     cbar = fig.colorbar(
-#         im, ax=axs[2, 1], orientation="vertical", pad=0.1
-#     )
-#     cbar.ax.yaxis.set_tick_params(labelsize=12)
-#     cbar.ax.set_title("Error Magnitude", fontsize=12)
-
-
-#     axs[0, 0].set_ylabel("Vector element index", fontsize=16)
-#     axs[1, 0].set_ylabel("Vector element index", fontsize=16)
-#     axs[2, 0].set_ylabel("Vector element index", fontsize=16)
-#     axs[0, 1].set_ylabel("Vector element index", fontsize=16)
-#     axs[1, 1].set_ylabel("Vector element index", fontsize=16)
-#     axs[2, 1].set_ylabel("Vector element index", fontsize=16)
-
-#     # Keep your x ticks logic (unchanged)
-#     for ax in axs.flat:
-#         ax.set_xticks(np.linspace(t0, tf, num=5))
-#         ax.set_xticklabels(np.round(np.linspace(t0, tf, num=5), 2))
-
-#     plt.tight_layout()
-#     plt.show()
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -539,13 +301,13 @@ def plot_states(
         )
 
         im = ax.imshow(
-            data,
+            data.T,  # transpose: basis components on x-axis, time on y-axis
             cmap=cmap,
             norm=norm,
-            extent=[t0, tf, 0, H],
+            extent=[0, H, t0, tf],  # [xmin, xmax, ymin, ymax]
             aspect="auto",
             interpolation="nearest",
-            origin="lower",  # <-- makes y increase upward (more intuitive with ticks)
+            origin="lower",
         )
         return im, centers, breaks_y, H
 
@@ -579,6 +341,7 @@ def plot_states(
     err_norm = Normalize(vmin=0.0, vmax=err_max)
 
     # ---------- Plot all panels
+    # Row 0: Real parts — col 0: NN, col 1: Sim, col 2: Error
     im00, centers, breaks_y, H = imshow_strips(
         axs[0, 0],
         nnR.T,
@@ -593,7 +356,7 @@ def plot_states(
     )
     im01, _, _, _ = imshow_strips(
         axs[0, 1],
-        nnI.T,
+        simR.T,
         t0,
         tf,
         STRIP_PX,
@@ -603,10 +366,23 @@ def plot_states(
         cmap=cmap_amp,
         norm=amp_norm,
     )
+    im02, _, _, _ = imshow_strips(
+        axs[0, 2],
+        errR.T,
+        t0,
+        tf,
+        STRIP_PX,
+        GAP_PX,
+        major_breaks,
+        MAJOR_GAP_PX,
+        cmap=cmap_err,
+        norm=err_norm,
+    )
 
+    # Row 1: Imaginary parts — col 0: NN, col 1: Sim, col 2: Error
     im10, _, _, _ = imshow_strips(
         axs[1, 0],
-        simR.T,
+        nnI.T,
         t0,
         tf,
         STRIP_PX,
@@ -628,21 +404,8 @@ def plot_states(
         cmap=cmap_amp,
         norm=amp_norm,
     )
-
-    im20, _, _, _ = imshow_strips(
-        axs[2, 0],
-        errR.T,
-        t0,
-        tf,
-        STRIP_PX,
-        GAP_PX,
-        major_breaks,
-        MAJOR_GAP_PX,
-        cmap=cmap_err,
-        norm=err_norm,
-    )
-    im21, _, _, _ = imshow_strips(
-        axs[2, 1],
+    im12, _, _, _ = imshow_strips(
+        axs[1, 2],
         errI.T,
         t0,
         tf,
@@ -665,36 +428,44 @@ def plot_states(
     major_ticks = [centers[i] for i in major_idx]
     major_labels = [basis_labels[i] for i in major_idx]
 
-    for r in range(3):
-        axs[r, 0].set_yticks(major_ticks)
-        axs[r, 0].set_yticklabels(major_labels, fontsize=11)
-        axs[r, 0].set_yticks(centers, minor=True)
-        axs[r, 0].tick_params(axis="y", which="minor", length=2)
+    # ---------- X ticks: basis component labels (bottom row only, due to sharex)
+    axs[1, 0].set_xticks(major_ticks)
+    axs[1, 0].set_xticklabels(major_labels, fontsize=20, rotation=90)
+    axs[1, 0].set_xticks(centers, minor=True)
+    axs[1, 0].tick_params(axis="x", which="minor", length=2)
+    
+    axs[1, 1].set_xticks(major_ticks)
+    axs[1, 1].set_xticklabels(major_labels, fontsize=20, rotation=90)
+    axs[1, 1].set_xticks(centers, minor=True)
+    axs[1, 1].tick_params(axis="x", which="minor", length=2)
+    
+    axs[1, 2].set_xticks(major_ticks)
+    axs[1, 2].set_xticklabels(major_labels, fontsize=20, rotation=90)
+    axs[1, 2].set_xticks(centers, minor=True)
+    axs[1, 2].tick_params(axis="x", which="minor", length=2)
 
-        # Right column: keep tick marks but hide labels (less clutter)
-        axs[r, 1].set_yticks(major_ticks)
-        axs[r, 1].set_yticklabels([])
-        axs[r, 1].set_yticks(centers, minor=True)
-        axs[r, 1].tick_params(axis="y", which="minor", length=2)
+    # Mark group boundaries (vertical lines) in all panels
+    for xb in breaks_y:
+        for r in range(2):
+            for c in range(3):
+                axs[r, c].axvline(xb, color="k", lw=0.6, alpha=0.25)
 
-        # Optional: mark the group boundary (if any)
-        for yb in breaks_y:
-            axs[r, 0].axhline(yb, color="k", lw=0.6, alpha=0.25)
-            axs[r, 1].axhline(yb, color="k", lw=0.6, alpha=0.25)
-
-    # ---------- Axis labels (only once, clean)
-    for r in range(3):
-        axs[r, 0].set_ylabel(r"Basis component $|s,n\rangle$", fontsize=14)
-
-    # X ticks (keep yours)
+    # ---------- Y ticks: time (left column only, due to sharey)
     for ax in axs.flat:
-        ax.set_xticks(np.linspace(t0, tf, num=5))
-        ax.set_xticklabels(np.round(np.linspace(t0, tf, num=5), 2))
+        ax.set_yticks(np.linspace(t0, tf, num=5))
+    axs[0, 0].set_yticklabels(np.round(np.linspace(t0, tf, num=5), 2), fontsize=20)
+
+    # ---------- Axis labels
+    for c in range(3):
+        axs[1, c].set_xlabel(r"Basis component $|s,n\rangle$", fontsize=24)
+    for r in range(2):
+        axs[r, 0].set_ylabel(r"\(gt\)", fontsize=22)
 
     # ---------- Shared colorbars (2 total)
     amp_sm = plt.cm.ScalarMappable(norm=amp_norm, cmap=cmap_amp)
     err_sm = plt.cm.ScalarMappable(norm=err_norm, cmap=cmap_err)
 
+    # Amplitude colorbar: spans NN and Sim columns (cols 0 and 1)
     cbar_amp = fig.colorbar(
         amp_sm,
         ax=[axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]],
@@ -702,16 +473,19 @@ def plot_states(
         fraction=0.025,
         pad=0.02,
     )
-    cbar_amp.set_label("Component value (signed)", fontsize=12)
+    cbar_amp.set_label("Component value (signed)", fontsize=24)
+    cbar_amp.ax.tick_params(labelsize=20)
 
+    # Error colorbar: spans Error column (col 2)
     cbar_err = fig.colorbar(
         err_sm,
-        ax=[axs[2, 0], axs[2, 1]],
+        ax=[axs[0, 2], axs[1, 2]],
         orientation="vertical",
         fraction=0.025,
         pad=0.02,
     )
-    cbar_err.set_label("Absolute error", fontsize=12)
+    cbar_err.set_label("Absolute error", fontsize=24)
+    cbar_err.ax.tick_params(labelsize=20)
 
     # If you use constrained_layout in set_plot_params_states(), prefer fig.tight_layout OFF.
     # plt.tight_layout()
