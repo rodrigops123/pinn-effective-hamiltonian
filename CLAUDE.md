@@ -35,8 +35,10 @@ The main entry points are Jupyter notebooks in `apps/`:
 
 ### Data Flow
 ```
+src/pinn_jc/physics/  (operators, Hamiltonian registry, initial states, frames)
+      ↓
 src/pinn_jc/data/simulate.py
-  → y_train (complex quantum states), expect_t (observables), H (Hamiltonian matrix)
+  → SimulationData (states, expectations, observables, H, time + which picture/frame)
       ↓
 src/pinn_jc/training/trainer.py  (PINN training loop)
   → trained neural networks
@@ -46,7 +48,9 @@ src/pinn_jc/visualization/plots.py
 
 ### Key Modules
 
-**`src/pinn_jc/data/simulate.py`** — Quantum simulation via QuTip. Generates training data for multiple Hamiltonian pictures (`"interaction"`, `"atom"`, `"full"`, `"rabi"`, `"rabi2"`, `"rabi2_ip"`) and initial states (Fock, coherent, squeezed, superposition).
+**`src/pinn_jc/physics/`** — Single source of truth for the physics. `hamiltonians.py` defines every picture (`interaction`, `atom`, `full`, `rabi`, `rabi2`, `rabi2_ip`, `geral`) once as a tuple of `Term(coefficient, operator, frequency)`; `Hamiltonian(picture, dims)` builds operators once and emits both `to_qobj(params)` (simulation) and `to_torch(params, couplings, time)` (ODE loss; `couplings` follow `Picture.couplings` order). `operators.py` names the operators (basis: `qutip.tensor(atom, field)`, atom index 1 = excited, σ- = destroy(atom)). `states.py` is the validated initial-state registry (`fock`, `fock_superposition`, `coherent`, `squeeze`). `frames.py` has the `Frame` enum and the exp(+iH0 t) rotation. Add new physics here, never inline in the trainer.
+
+**`src/pinn_jc/data/simulate.py`** — `simulate(...) -> SimulationData` integrates with QuTiP. On resonance with g2 = 0, lab-frame pictures are integrated in the interaction picture; `SimulationData.simulated_picture` / `simulation_frame` / `rotated_to_interaction_frame` record what was done.
 
 **`src/pinn_jc/training/losses.py`** — Four PINN loss components:
 - `loss_ic`: initial condition (state at t=0)

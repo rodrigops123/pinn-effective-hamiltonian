@@ -11,12 +11,9 @@ import pytest
 import qutip
 import torch
 
-from pinn_jc.data.simulate import (
-    choose_init_state,
-    chooses_hamiltonian,
-    data_jc,
-)
-from pinn_jc.training.losses import hamiltonian_with_params, loss_ode
+from pinn_jc.data.simulate import simulate
+from pinn_jc.physics import Hamiltonian, initial_state
+from pinn_jc.training.losses import loss_ode
 
 DIMS = {"atom": 2, "field": 3}
 ODE_TOLERANCE = 1e-4  # float32 autograd residual of the exact solution is ~1e-6
@@ -59,25 +56,13 @@ TIME_INDEPENDENT_CASES = {
 def test_loss_ode_vanishes_on_exact_solution(picture):
     params, couplings = TIME_INDEPENDENT_CASES[picture]
     time = _time_grid()
-    psi0 = _to_torch(choose_init_state("fock", DIMS)).ravel()
-    psi = _exact_state(
-        _to_torch(chooses_hamiltonian(picture, params, DIMS)), psi0, time
-    )
+    psi0 = _to_torch(initial_state("fock", DIMS)).ravel()
+    hamiltonian = Hamiltonian(picture, DIMS)
+    psi = _exact_state(_to_torch(hamiltonian.to_qobj(params)), psi0, time)
 
-    hamiltonian = hamiltonian_with_params(
-        picture, params, torch.tensor(couplings), DIMS, time
-    )
+    hamiltonian = hamiltonian.to_torch(params, torch.tensor(couplings), time)
 
     assert loss_ode(hamiltonian, psi, time).item() < ODE_TOLERANCE
-
-
-def test_simulation_and_training_hamiltonians_agree():
-    params, couplings = TIME_INDEPENDENT_CASES["rabi2"]
-    simulated = _to_torch(chooses_hamiltonian("rabi2", params, DIMS))
-    trained = hamiltonian_with_params(
-        "rabi2", params, torch.tensor(couplings), DIMS, None
-    )
-    torch.testing.assert_close(simulated, trained)
 
 
 @pytest.mark.xfail(
@@ -89,16 +74,16 @@ def test_simulation_and_training_hamiltonians_agree():
 def test_loss_ode_vanishes_on_exact_interaction_picture_solution():
     params = {"wc": 1.3, "wa": 1.0, "g1": 0.7, "g2": 0.4}
     time = _time_grid()
-    psi0 = _to_torch(choose_init_state("fock", DIMS)).ravel()
+    psi0 = _to_torch(initial_state("fock", DIMS)).ravel()
     psi = _exact_state(
-        _to_torch(chooses_hamiltonian("rabi2", params, DIMS)),
+        _to_torch(Hamiltonian("rabi2", DIMS).to_qobj(params)),
         psi0,
         time,
         frame_hamiltonian=_to_torch(_free_hamiltonian(params, DIMS)),
     )
 
-    hamiltonian = hamiltonian_with_params(
-        "rabi2_ip", params, torch.tensor([0.7, 0.4]), DIMS, time
+    hamiltonian = Hamiltonian("rabi2_ip", DIMS).to_torch(
+        params, torch.tensor([0.7, 0.4]), time
     )
 
     assert loss_ode(hamiltonian, psi, time).item() < ODE_TOLERANCE
@@ -146,7 +131,7 @@ FRAME_CASES = {
         marks=pytest.mark.xfail(
             strict=True,
             raises=AssertionError,
-            reason="Bug B: data_jc silently simulates in the interaction picture, then "
+            reason="Bug B: simulate() integrates in the interaction picture, then "
             "rotates again by exp(+iH0 t). Fix in Phase 3.",
         ),
     ),
@@ -162,11 +147,9 @@ def test_training_data_satisfies_training_hamiltonian(
     picture, picture_train, params, couplings
 ):
     dims = {"atom": 2, "field": 4}
-    states, _, _, _, time = data_jc(
-        params, 2.0, 4001, "fock", picture, dims, state_frame="interaction"
-    )
-    hamiltonian = hamiltonian_with_params(
-        picture_train, params, torch.tensor(couplings), dims, time.detach()
+    data = simulate(params, 2.0, 4001, "fock", picture, dims, state_frame="interaction")
+    hamiltonian = Hamiltonian(picture_train, dims).to_torch(
+        params, torch.tensor(couplings), data.time.detach()
     )
 
-    assert _finite_difference_residual(states, time, hamiltonian) < 1e-2
+    assert _finite_difference_residual(data.states, data.time, hamiltonian) < 1e-2

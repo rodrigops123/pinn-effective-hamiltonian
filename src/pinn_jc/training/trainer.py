@@ -3,10 +3,10 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from pinn_jc import settings
-from pinn_jc.data.simulate import data_jc
+from pinn_jc.data.simulate import simulate
 from pinn_jc.models.mlp import Neural_Net
+from pinn_jc.physics import Hamiltonian
 from pinn_jc.training.losses import (
-    hamiltonian_with_params,
     loss_data,
     loss_ic,
     loss_norm,
@@ -71,7 +71,7 @@ def train(
         amsgrad=True,
     )
 
-    sim_state, sim_expect, hamiltonian, operator, time = data_jc(
+    data = simulate(
         params=params,
         tfinal=tfinal,
         n_time_steps=n_time_steps,
@@ -79,6 +79,8 @@ def train(
         picture=picture,
         dims=dims,
     )
+    sim_state, sim_expect = data.states, data.expectations
+    hamiltonian, operator, time = data.hamiltonian, data.observables, data.time
 
     sim_state_train, _ = train_test_split(sim_state, test_size=0.2)
     sim_expect_train, _ = train_test_split(sim_expect, test_size=0.2)
@@ -155,7 +157,7 @@ def train_with_parameter(
     )
 
     # --- KEY: generate training state in the interaction frame (slow envelope)
-    sim_state, sim_expect, _, operator, time = data_jc(
+    data = simulate(
         params=params,
         tfinal=tfinal,
         n_time_steps=n_time_steps,
@@ -164,6 +166,8 @@ def train_with_parameter(
         dims=dims,
         state_frame="interaction",
     )
+    sim_state, sim_expect = data.states, data.expectations
+    operator, time = data.observables, data.time
 
     # sim_state_train, _ = train_test_split(sim_state, test_size=0.2)
     # sim_expect_train, _ = train_test_split(sim_expect, test_size=0.2)
@@ -181,6 +185,7 @@ def train_with_parameter(
     picture_train = picture
     if picture == "rabi2":
         picture_train = "rabi2_ip"
+    hamiltonian = Hamiltonian(picture_train, dims)
 
     # Tiny regularization for g2 only when the DATA is JC-like (true g2 = 0).
     lambda_g2 = (
@@ -207,13 +212,7 @@ def train_with_parameter(
         coupling_strength = F.softplus(model_real.param)
 
         # Hamiltonian (possibly time-dependent)
-        H_ = hamiltonian_with_params(
-            picture=picture_train,
-            params=params,
-            coupling_strength=coupling_strength,
-            dims=dims,
-            tempo=time,
-        )
+        H_ = hamiltonian.to_torch(params, couplings=coupling_strength, time=time)
 
         loss_ic_value = loss_ic(nn_state, sim_state)
         loss_norm_value = loss_norm(nn_state)

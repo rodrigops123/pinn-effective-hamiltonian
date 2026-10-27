@@ -37,7 +37,6 @@ where = ["src"]
 testpaths = ["tests"]
 filterwarnings = [
     "ignore::FutureWarning:qutip",
-    "ignore:Dedicated options class are no longer needed:FutureWarning",
     # matplotlib 3.9 calls pyparsing APIs that newer pyparsing releases deprecate
     "ignore::DeprecationWarning:matplotlib\\..*",
 ]

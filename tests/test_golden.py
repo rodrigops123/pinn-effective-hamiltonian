@@ -11,8 +11,8 @@ import pytest
 import torch
 
 from conftest import seed_everything
-from pinn_jc.data.simulate import data_jc
-from pinn_jc.training.losses import hamiltonian_with_params
+from pinn_jc.data.simulate import simulate
+from pinn_jc.physics import Hamiltonian
 from pinn_jc.training.trainer import train, train_with_parameter
 
 SIMULATION_CASES = {
@@ -28,7 +28,7 @@ SIMULATION_CASES = {
         init_state="coherent",
         dims={"atom": 2, "field": 4},
     ),
-    # Resonant with g2 = 0: data_jc silently simulates in the interaction picture.
+    # Resonant with g2 = 0: simulated in the interaction picture instead.
     "full_fock_superposition_resonant": dict(
         params={"wc": 1.0, "wa": 1.0, "g1": 0.7},
         picture="full",
@@ -46,21 +46,21 @@ SIMULATION_CASES = {
 
 @pytest.mark.parametrize("state_frame", ["lab", "interaction"])
 @pytest.mark.parametrize("case", sorted(SIMULATION_CASES))
-def test_data_jc(golden, case, state_frame):
-    y, expect, hamiltonian, operators, time = data_jc(
+def test_simulate(golden, case, state_frame):
+    data = simulate(
         tfinal=2 * np.pi,
         n_time_steps=50,
         state_frame=state_frame,
         **SIMULATION_CASES[case],
     )
     golden(
-        f"data_jc__{case}__{state_frame}",
+        f"simulate__{case}__{state_frame}",
         {
-            "state": y.numpy(),
-            "expect": expect.numpy(),
-            "hamiltonian": hamiltonian.numpy(),
-            "operators": operators.numpy(),
-            "time": time.detach().numpy(),
+            "state": data.states.numpy(),
+            "expect": data.expectations.numpy(),
+            "hamiltonian": data.hamiltonian.numpy(),
+            "operators": data.observables.numpy(),
+            "time": data.time.detach().numpy(),
         },
     )
 
@@ -75,14 +75,12 @@ HAMILTONIAN_CASES = {
 
 
 @pytest.mark.parametrize("picture", sorted(HAMILTONIAN_CASES))
-def test_hamiltonian_with_params(golden, picture):
+def test_hamiltonian_to_torch(golden, picture):
     time = torch.linspace(0, 2, 7).reshape(-1, 1)
-    hamiltonian = hamiltonian_with_params(
-        picture=picture,
+    hamiltonian = Hamiltonian(picture, {"atom": 2, "field": 3}).to_torch(
         params={"wc": 1.3, "wa": 1.0},
-        coupling_strength=torch.tensor(HAMILTONIAN_CASES[picture]),
-        dims={"atom": 2, "field": 3},
-        tempo=time,
+        couplings=torch.tensor(HAMILTONIAN_CASES[picture]),
+        time=time,
     )
     golden(f"hamiltonian__{picture}", {"hamiltonian": hamiltonian.numpy()})
 

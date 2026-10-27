@@ -6,7 +6,7 @@ import torch
 from matplotlib.colors import Normalize, TwoSlopeNorm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from pinn_jc.data.simulate import data_jc
+from pinn_jc.data.simulate import simulate
 
 plt.style.use(["science", "retro", "grid"])
 
@@ -15,13 +15,18 @@ def prep_plot_input(
     params, tfinal, n_time_steps, init_state, picture, dims, plot_input
 ):
 
-    sim_state, sim_expect, _, operators_list, time = data_jc(
+    data = simulate(
         params=params,
         tfinal=tfinal,
         n_time_steps=n_time_steps,
         init_state=init_state,
         picture=picture,
         dims=dims,
+    )
+    sim_state, sim_expect, operators_list = (
+        data.states,
+        data.expectations,
+        data.observables,
     )
 
     time = torch.linspace(0, tfinal, n_time_steps)
