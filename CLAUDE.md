@@ -60,19 +60,19 @@ src/pinn_jc/visualization/plots.py
 
 **`src/pinn_jc/training/trainer.py`** — Training loops. `train()` uses a fixed Hamiltonian; `train_with_parameter()` jointly learns coupling constants (g1, g2, etc.) alongside the state; picture `rabi2` is trained as `rabi2_ip` with data simulated in that frame.
 
-**`src/pinn_jc/models/mlp.py`** — Standard multi-layer fully connected network. Real and imaginary parts of the complex quantum state are handled by separate networks.
+**`src/pinn_jc/models/`** — `MLP` (fully connected, `Sine` activation by default), `ComplexStateNet(real, imag)` giving ψ(t) = real(t) + i·imag(t), and `Couplings(n, positivity="softplus"|"abs")` holding the learnable g's (`.raw` parameter, θ ~ U(0,1) at init). Physics parameters never live inside a network. `trainer.build_models` constructs real net → couplings → imag net; this order reproduces the legacy RNG stream, so do not reorder it.
 
-**`src/pinn_jc/settings.py`** — Global defaults: `SEED`, default model architecture (`units=[100,100,100]`, `SIN()` activation, lr 0.01), `DEVICE="cpu"`.
+**`src/pinn_jc/settings.py`** — Global defaults: `SEED`, default model architecture (`units=[100,100,100]`, `Sine()` activation, lr 0.01), `DEVICE="cpu"`.
 
-**`src/pinn_jc/io/legacy.py`** — `load_legacy_pickle` reads result pickles saved before the package layout (remaps old class paths).
+**`src/pinn_jc/io/legacy.py`** — Everything pre-Phase-4: `LegacyNeuralNet` (old class, only for unpickling), `load_legacy_pickle` (remaps old class paths), `models_from_legacy_state_dicts` (migrated `{"model_real","model_imag"}` weights → current modules) and `as_models` (accepts new `{"state","couplings"}` or legacy `models_dict`; used by the plots).
 
 ### Complex Number Handling
 
-Networks output real tensors; real and imaginary parts of ψ are handled by separate `Neural_Net` instances. Internally, `torch.complex64` is used for operator algebra and ODE loss computation.
+Networks output real tensors; `ComplexStateNet` combines the real- and imaginary-part `MLP`s into a complex ψ. Internally, `torch.complex64` is used for operator algebra and ODE loss computation.
 
 ### Learnable Parameters
 
-`train_with_parameter()` exposes coupling constants (e.g., `g1`, `g2`) as `nn.Parameter` with softplus activation to enforce positivity. Learned parameter values are stored per epoch in `loss_dict`.
+`train_with_parameter(..., positivity="softplus")` learns the couplings (in `Picture.couplings` order) through a `Couplings` module and returns `({"state": ComplexStateNet, "couplings": Couplings}, loss_dict)`; `loss_dict["learned_param"]` holds the transformed values per epoch. `train()` returns `couplings=None`.
 
 ## Saved Outputs
 

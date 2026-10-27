@@ -113,12 +113,12 @@ def _history_arrays(loss_dict):
     return {key: np.asarray(values) for key, values in loss_dict.items()}
 
 
-def _predictions(models_dict, n_time_steps=40, tfinal=2 * np.pi):
+def _predictions(models, n_time_steps=40, tfinal=2 * np.pi):
     time = torch.linspace(0, tfinal, n_time_steps).reshape(-1, 1)
     with torch.no_grad():
         return {
-            "pred_real": models_dict["model_real"](time).numpy(),
-            "pred_imag": models_dict["model_imag"](time).numpy(),
+            "pred_real": models["state"].real(time).numpy(),
+            "pred_imag": models["state"].imag(time).numpy(),
         }
 
 
@@ -126,7 +126,7 @@ def _predictions(models_dict, n_time_steps=40, tfinal=2 * np.pi):
 def test_train_with_parameter(golden, case):
     seed_everything(0)
     n_time_steps = 40
-    models_dict, loss_dict = train_with_parameter(
+    models, loss_dict = train_with_parameter(
         epochs=15,
         tfinal=2 * np.pi,
         n_time_steps=n_time_steps,
@@ -136,13 +136,13 @@ def test_train_with_parameter(golden, case):
     )
     golden(
         f"train_with_parameter__{case}",
-        {**_history_arrays(loss_dict), **_predictions(models_dict)},
+        {**_history_arrays(loss_dict), **_predictions(models)},
     )
 
 
 def test_train(golden):
     seed_everything(0)
-    models_dict, loss_dict = train(
+    models, loss_dict = train(
         epochs=15,
         params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
         tfinal=2 * np.pi,
@@ -151,6 +151,4 @@ def test_train(golden):
         picture="atom",
         dims={"atom": 2, "field": 2},
     )
-    golden(
-        "train__atom_fock", {**_history_arrays(loss_dict), **_predictions(models_dict)}
-    )
+    golden("train__atom_fock", {**_history_arrays(loss_dict), **_predictions(models)})

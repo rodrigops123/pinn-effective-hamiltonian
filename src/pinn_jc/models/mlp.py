@@ -1,52 +1,43 @@
-import torch
+from collections.abc import Sequence
+from itertools import pairwise
+
 import torch.nn as nn
 
+from pinn_jc.models.activations import Sine
 
-class Neural_Net(nn.Module):
+
+class MLP(nn.Module):
+    """Fully connected network: hidden layers with activation and dropout, linear output."""
+
     def __init__(
         self,
-        units,
-        activation,
-        input=1,
-        output=1,
-        create_parameter=False,
-        n_paramater=1,
-        dropout_prob=0.0,
+        in_features: int,
+        out_features: int,
+        hidden_units: Sequence[int],
+        activation: nn.Module | Sequence[nn.Module] | None = None,
+        dropout: float = 0.0,
     ):
         super().__init__()
-        self.units = units
-        self.output = output
-        self.create_parameter = create_parameter
-        self.n_paramater = n_paramater
-        self.dropout_prob = dropout_prob
-
-        self.hidden_layers = nn.ModuleList([nn.Linear(input, units[0])])
-
-        self.hidden_layers.extend(
-            [nn.Linear(units[_], units[_ + 1]) for _ in range(len(self.units) - 1)]
+        widths = [in_features, *hidden_units]
+        self.hidden_layers = nn.ModuleList(
+            nn.Linear(n_in, n_out) for n_in, n_out in pairwise(widths)
         )
-        # Última camada linear
-        self.output_layer = nn.Linear(units[-1], self.output)
+        self.output_layer = nn.Linear(hidden_units[-1], out_features)
 
-        if not isinstance(activation, list):
-            self.activation = [activation] * len(self.units)
-
-        else:
-            self.activation = activation
-
-        # Camadas de Dropout
-        self.dropouts = nn.ModuleList(
-            [nn.Dropout(dropout_prob) for _ in range(len(self.units))]
-        )
-
-        if self.create_parameter:
-            self.param = nn.Parameter(torch.rand(self.n_paramater), requires_grad=True)
+        if activation is None:
+            activation = Sine()
+        if isinstance(activation, nn.Module):
+            activation = [activation] * len(hidden_units)
+        if len(activation) != len(hidden_units):
+            raise ValueError(
+                f"got {len(activation)} activations for {len(hidden_units)} hidden layers"
+            )
+        self.activations = nn.ModuleList(activation)
+        self.dropouts = nn.ModuleList(nn.Dropout(dropout) for _ in hidden_units)
 
     def forward(self, x):
         for layer, activation, dropout in zip(
-            self.hidden_layers, self.activation, self.dropouts, strict=True
+            self.hidden_layers, self.activations, self.dropouts, strict=True
         ):
-            x = activation(layer(x))
-            x = dropout(x)
-        x = self.output_layer(x)
-        return x
+            x = dropout(activation(layer(x)))
+        return self.output_layer(x)

@@ -1,10 +1,9 @@
 import torch
-import torch.nn.functional as F
 from tqdm import tqdm
 
 from pinn_jc import settings
 from pinn_jc.data.simulate import simulate
-from pinn_jc.models.mlp import Neural_Net
+from pinn_jc.models import MLP, ComplexStateNet, Couplings
 from pinn_jc.physics import Hamiltonian
 from pinn_jc.training.losses import (
     loss_data,
@@ -44,32 +43,34 @@ def data_indices(n_samples, n_points, seed=settings.SEED):
     return torch.randperm(n_samples, generator=generator)[:n_points]
 
 
-def instantiate_model(
+def build_models(
     output_dim,
-    input_dim=1,
+    n_couplings=0,
+    positivity="softplus",
     neural_net_params=settings.model_train_params,
-    create_parameter=False,
-    n_paramater=1,
 ):
+    """Networks for ψ(t) and, if ``n_couplings`` > 0, the learnable couplings.
 
-    model_real = Neural_Net(
-        units=neural_net_params["units"],
-        activation=neural_net_params["activation"],
-        input=input_dim,
-        output=output_dim,
-        create_parameter=create_parameter,
-        n_paramater=n_paramater,
-    ).to(device=settings.DEVICE)
+    The construction order (real network, couplings, imaginary network) fixes how the
+    random initialisation is drawn; keep it so that a seed reproduces earlier runs.
+    """
 
-    model_imag = Neural_Net(
-        units=neural_net_params["units"],
-        activation=neural_net_params["activation"],
-        input=input_dim,
-        output=output_dim,
-        create_parameter=False,
-    ).to(device=settings.DEVICE)
+    def network():
+        return MLP(
+            in_features=1,
+            out_features=output_dim,
+            hidden_units=neural_net_params["units"],
+            activation=neural_net_params["activation"],
+        )
 
-    return model_real, model_imag
+    real = network()
+    couplings = Couplings(n_couplings, positivity) if n_couplings else None
+    imag = network()
+
+    state = ComplexStateNet(real, imag).to(device=settings.DEVICE)
+    if couplings is not None:
+        couplings = couplings.to(device=settings.DEVICE)
+    return state, couplings
 
 
 def train(
@@ -78,10 +79,10 @@ def train(
 
     output_dim = dims["atom"] * dims["field"]
 
-    model_real, model_imag = instantiate_model(output_dim=output_dim)
+    state, _ = build_models(output_dim)
 
     optimizer = torch.optim.Adam(
-        list(model_real.parameters()) + list(model_imag.parameters()),
+        state.parameters(),
         lr=settings.model_train_params["learning_rate"],
         amsgrad=True,
     )
@@ -112,10 +113,7 @@ def train(
     }
 
     for _ in tqdm(range(epochs)):
-        # Forward pass
-        nn_state_real = model_real(time_train)
-        nn_state_imag = model_imag(time_train)
-        nn_state = nn_state_real + 1j * nn_state_imag
+        nn_state = state(time_train)
 
         # Compute losses
         loss_ic_value = loss_ic(nn_state, sim_state_train)
@@ -138,12 +136,7 @@ def train(
         total_loss.backward()
         optimizer.step()
 
-    models_dict = {
-        "model_real": model_real,
-        "model_imag": model_imag,
-    }
-
-    return models_dict, loss_dict
+    return {"state": state, "couplings": None}, loss_dict
 
 
 def train_with_parameter(
@@ -157,16 +150,15 @@ def train_with_parameter(
     n_points_loss,
     n_parameter,
     is_scaled,
+    positivity="softplus",
 ):
 
     output_dim = dims["atom"] * dims["field"]
 
-    model_real, model_imag = instantiate_model(
-        output_dim=output_dim, create_parameter=True, n_paramater=n_parameter
-    )
+    state, couplings = build_models(output_dim, n_parameter, positivity)
 
     optimizer = torch.optim.Adam(
-        list(model_real.parameters()) + list(model_imag.parameters()),
+        [*state.parameters(), *couplings.parameters()],
         lr=settings.model_train_params["learning_rate"],
         amsgrad=True,
     )
@@ -210,12 +202,8 @@ def train_with_parameter(
     for _ in tqdm(range(epochs)):
         optimizer.zero_grad()
 
-        nn_state_real = model_real(network_time)
-        nn_state_imag = model_imag(network_time)
-        nn_state = nn_state_real + 1j * nn_state_imag
-
-        # Smooth positivity (better gradients than abs)
-        coupling_strength = F.softplus(model_real.param)
+        nn_state = state(network_time)
+        coupling_strength = couplings()
 
         # Hamiltonian (possibly time-dependent)
         H_ = hamiltonian.to_torch(
@@ -239,5 +227,4 @@ def train_with_parameter(
         loss_dict["loss_ode"].append(float(loss_ode_value.item()))
         loss_dict["learned_param"].append(coupling_strength.detach().tolist())
 
-    models_dict = {"model_real": model_real, "model_imag": model_imag}
-    return models_dict, loss_dict
+    return {"state": state, "couplings": couplings}, loss_dict
