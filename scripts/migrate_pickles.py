@@ -1,8 +1,8 @@
 """Convert legacy result pickles into a refactor-proof format.
 
-The legacy ``.pkl`` files pickle whole ``nn.Module`` objects, so they can only be loaded
-while ``src.model.neural_network.Neural_Net`` and ``utils.SIN`` exist at those import
-paths. This script must therefore run before Phase 1 moves any code.
+The legacy ``.pkl`` files pickle whole ``nn.Module`` objects under their pre-package
+import paths; they are read through ``pinn_jc.io.legacy.load_legacy_pickle``, which maps
+those paths onto the current classes.
 
 For every ``<name>.pkl`` it writes::
 
@@ -20,18 +20,17 @@ Usage:
 import argparse
 import hashlib
 import json
-import pickle
 import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
+from pinn_jc.io.legacy import load_legacy_pickle
+from pinn_jc.models.activations import SIN
+from pinn_jc.models.mlp import Neural_Net
 
-from src.model.neural_network import Neural_Net  # noqa: E402
-from utils import SIN  # noqa: E402
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 # Experiment settings as written in the notebooks that most plausibly produced each file.
 # The notebooks were edited after these runs (e.g. some runs used 50 hidden units while
@@ -82,11 +81,15 @@ def normalize_runs(legacy: dict) -> dict:
 
 
 def describe_network(state_dict: dict) -> dict:
-    hidden = sorted(k for k in state_dict if k.startswith("hidden_layers.") and k.endswith("weight"))
+    hidden = sorted(
+        k for k in state_dict if k.startswith("hidden_layers.") and k.endswith("weight")
+    )
     return {
         "hidden_units": [int(state_dict[k].shape[0]) for k in hidden],
         "output_dim": int(state_dict["output_layer.weight"].shape[0]),
-        "n_couplings": int(state_dict["param"].shape[0]) if "param" in state_dict else 0,
+        "n_couplings": int(state_dict["param"].shape[0])
+        if "param" in state_dict
+        else 0,
     }
 
 
@@ -119,7 +122,9 @@ def migrate_run(run: dict, run_dir: Path) -> dict:
     with torch.no_grad():
         for name, model in run["models"].items():
             if not torch.equal(rebuild(loaded[name])(time), model.eval()(time)):
-                raise RuntimeError(f"{run_dir}/{name}: rebuilt network differs from legacy")
+                raise RuntimeError(
+                    f"{run_dir}/{name}: rebuilt network differs from legacy"
+                )
     with np.load(run_dir / "history.npz") as history:
         for key, values in history_arrays(run["loss"]).items():
             if not np.array_equal(history[key], values):
@@ -134,17 +139,17 @@ def migrate_run(run: dict, run_dir: Path) -> dict:
 
 
 def migrate_file(pkl_path: Path, dst_root: Path) -> None:
-    with pkl_path.open("rb") as f:
-        legacy = pickle.load(f)
+    legacy = load_legacy_pickle(pkl_path)
     runs = normalize_runs(legacy)
     experiment_dir = dst_root / pkl_path.stem
 
     run_summaries = {
-        run_name: migrate_run(run, experiment_dir / run_name) for run_name, run in runs.items()
+        run_name: migrate_run(run, experiment_dir / run_name)
+        for run_name, run in runs.items()
     }
     first_run = next(iter(runs.values()))
     meta = {
-        "legacy_file": str(pkl_path.relative_to(PROJECT_ROOT)),
+        "legacy_file": pkl_path.name,
         "legacy_sha256": sha256(pkl_path),
         "verified_from_weights": {
             **describe_network(first_run["models"]["model_real"].state_dict()),
@@ -158,13 +163,17 @@ def migrate_file(pkl_path: Path, dst_root: Path) -> None:
         "runs": run_summaries,
     }
     (experiment_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"{pkl_path.name}: {len(runs)} run(s) -> {experiment_dir.relative_to(PROJECT_ROOT)}")
+    print(f"{pkl_path.name}: {len(runs)} run(s) -> {experiment_dir}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--src", type=Path, default=PROJECT_ROOT / "saved_artifacts" / "training")
-    parser.add_argument("--dst", type=Path, default=PROJECT_ROOT / "saved_artifacts" / "runs")
+    parser.add_argument(
+        "--src", type=Path, default=PROJECT_ROOT / "saved_artifacts" / "training"
+    )
+    parser.add_argument(
+        "--dst", type=Path, default=PROJECT_ROOT / "saved_artifacts" / "runs"
+    )
     args = parser.parse_args()
 
     pkl_paths = sorted(args.src.resolve().glob("*.pkl"))

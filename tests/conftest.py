@@ -40,7 +40,11 @@ def golden():
         assert set(reference.files) == set(arrays), "golden keys changed"
         for key in reference.files:
             np.testing.assert_allclose(
-                arrays[key], reference[key], rtol=rtol, atol=atol, err_msg=f"{name}:{key}"
+                arrays[key],
+                reference[key],
+                rtol=rtol,
+                atol=atol,
+                err_msg=f"{name}:{key}",
             )
 
     return check

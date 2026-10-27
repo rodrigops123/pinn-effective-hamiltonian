@@ -5,8 +5,8 @@ import pytest
 import torch
 
 from conftest import seed_everything
-from src.model.loss_functions import loss_data
-from src.model.train_and_eval import train_with_parameter
+from pinn_jc.training.losses import loss_data
+from pinn_jc.training.trainer import train_with_parameter
 
 
 @pytest.mark.xfail(
