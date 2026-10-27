@@ -7,6 +7,7 @@ from matplotlib.colors import Normalize, TwoSlopeNorm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from pinn_jc.data.simulate import simulate
+from pinn_jc.io.legacy import as_models
 
 plt.style.use(["science", "retro", "grid"])
 
@@ -97,8 +98,7 @@ def plot_expected_values(
     Plots the expected values of the model and optionally compares them with simulation data.
 
     Args:
-        model_real: Real part of the model's output.
-        model_imag: Imaginary part of the model's output.
+        models_dict: trained models, ``{"state", "couplings"}`` or a legacy dict.
         time: Time points for the x-axis.
         operator: Operator used to compute expected values.
     """
@@ -114,9 +114,7 @@ def plot_expected_values(
     labels, labels_error, colors, colors_error = set_labels_and_colors_expected_values()
 
     for i, operator in enumerate(operators_list):
-        nn_state_train = models_dict["model_real"](time) + 1j * models_dict[
-            "model_imag"
-        ](time)
+        nn_state_train = as_models(models_dict)["state"](time)
 
         expected_values_train = torch.einsum(
             "ni,ij,nj->n", nn_state_train.conj(), operator, nn_state_train
@@ -314,8 +312,9 @@ def plot_states(
     cmap_amp.set_bad(color="white")
     cmap_err.set_bad(color="white")
 
-    nn_state_real = models_dict["model_real"](time)
-    nn_state_imag = models_dict["model_imag"](time)
+    state = as_models(models_dict)["state"]
+    nn_state_real = state.real(time)
+    nn_state_imag = state.imag(time)
 
     n_dim = nn_state_real.shape[1]
     t0, tf = time[0].item(), time[-1].item()
@@ -653,10 +652,7 @@ def plot_fidelity(
     if is_scaled:
         time = time / time.max()
 
-    nn_state_real = models_dict["model_real"](time)
-    nn_state_imag = models_dict["model_imag"](time)
-
-    nn_state = nn_state_real + 1j * nn_state_imag
+    nn_state = as_models(models_dict)["state"](time)
 
     nn_state_conj = nn_state.conj()
 

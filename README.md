@@ -12,10 +12,10 @@ This is a code base used to train a neural network based on the Physics Informed
 |   |___settings.py           # global defaults (device, seed, network defaults)
 |   |___physics/              # operators, Hamiltonian registry, initial states, frames
 |   |___data/simulate.py      # QuTiP simulation of the training data
-|   |___models/               # MLP and activations
+|   |___models/               # MLP, complex state network, learnable couplings
 |   |___training/             # loss functions and training loops
 |   |___visualization/        # plotting
-|   |___io/legacy.py          # load pickles written before the package layout
+|   |___io/legacy.py          # load and convert results from earlier code versions
 |___tests/
 |___pyproject.toml
 |___uv.lock                   # exact, hashed versions of every dependency

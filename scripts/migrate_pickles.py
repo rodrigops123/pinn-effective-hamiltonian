@@ -26,9 +26,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from pinn_jc.io.legacy import load_legacy_pickle
-from pinn_jc.models.activations import SIN
-from pinn_jc.models.mlp import Neural_Net
+from pinn_jc.io.legacy import load_legacy_pickle, models_from_legacy_state_dicts
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -93,19 +91,6 @@ def describe_network(state_dict: dict) -> dict:
     }
 
 
-def rebuild(state_dict: dict) -> Neural_Net:
-    spec = describe_network(state_dict)
-    net = Neural_Net(
-        units=spec["hidden_units"],
-        activation=SIN(),
-        output=spec["output_dim"],
-        create_parameter=spec["n_couplings"] > 0,
-        n_paramater=max(spec["n_couplings"], 1),
-    )
-    net.load_state_dict(state_dict)
-    return net.eval()
-
-
 def history_arrays(loss: dict) -> dict:
     return {key: np.asarray(values, dtype=np.float64) for key, values in loss.items()}
 
@@ -116,12 +101,14 @@ def migrate_run(run: dict, run_dir: Path) -> dict:
     torch.save(state_dicts, run_dir / "model.pt")
     np.savez_compressed(run_dir / "history.npz", **history_arrays(run["loss"]))
 
-    # Verify: weights reproduce the legacy outputs, history round-trips.
+    # Verify: the current modules rebuilt from the saved weights reproduce the legacy
+    # networks exactly, and the history round-trips.
     loaded = torch.load(run_dir / "model.pt", weights_only=True)
+    state = models_from_legacy_state_dicts(loaded)["state"]
     time = torch.linspace(0, 30, 257).reshape(-1, 1)
     with torch.no_grad():
-        for name, model in run["models"].items():
-            if not torch.equal(rebuild(loaded[name])(time), model.eval()(time)):
+        for name, rebuilt in (("model_real", state.real), ("model_imag", state.imag)):
+            if not torch.equal(rebuilt(time), run["models"][name].eval()(time)):
                 raise RuntimeError(
                     f"{run_dir}/{name}: rebuilt network differs from legacy"
                 )
