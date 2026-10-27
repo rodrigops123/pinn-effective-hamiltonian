@@ -60,11 +60,13 @@ def simulate(
     picture: str = "interaction",
     dims: Mapping[str, int] | None = None,
     frame: Frame | str | None = None,
+    init_state_options: Mapping[str, float] | None = None,
 ) -> SimulationData:
     """Simulate the atom-cavity system on ``n_time_steps`` points of [0, tfinal].
 
     ``frame`` selects the frame of the returned states; by default it is the frame of
     ``picture``, so the states satisfy dψ/dt = -i H ψ with that picture's Hamiltonian.
+    ``init_state_options`` are passed to the initial state (e.g. ``alpha``, ``r``).
     """
     if dims is None:
         dims = {"atom": 2, "field": 2}
@@ -82,7 +84,7 @@ def simulate(
 
     result = qutip.sesolve(
         hamiltonian,
-        initial_state(init_state, dims),
+        initial_state(init_state, dims, **(init_state_options or {})),
         times,
         e_ops=measured,
         options={"store_states": True},

@@ -13,6 +13,12 @@ import torch
 from conftest import seed_everything
 from pinn_jc.data.simulate import simulate
 from pinn_jc.physics import Hamiltonian
+from pinn_jc.training.config import (
+    DataConfig,
+    ExperimentConfig,
+    PhysicsConfig,
+    TrainingConfig,
+)
 from pinn_jc.training.trainer import train, train_with_parameter
 
 SIMULATION_CASES = {
@@ -140,15 +146,22 @@ def test_train_with_parameter(golden, case):
     )
 
 
-def test_train(golden):
-    seed_everything(0)
-    models, loss_dict = train(
-        epochs=15,
-        params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
-        tfinal=2 * np.pi,
-        n_time_steps=40,
-        init_state="fock",
-        picture="atom",
-        dims={"atom": 2, "field": 2},
+def test_train_with_fixed_couplings_and_validation_window(golden):
+    """The pre-Phase-5 fixed-Hamiltonian train(): last 20% of the grid held out,
+    expectation data at the first instant only."""
+    config = ExperimentConfig(
+        physics=PhysicsConfig(
+            picture="atom",
+            params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
+            init_state="fock",
+            dims={"atom": 2, "field": 2},
+            learn_couplings=False,
+        ),
+        data=DataConfig(tfinal=2 * np.pi, n_time_steps=40, validation_fraction=0.2),
+        training=TrainingConfig(epochs=15, seed=0, progress_bar=False),
     )
-    golden("train__atom_fock", {**_history_arrays(loss_dict), **_predictions(models)})
+    result = train(config)
+    history = result.history.to_legacy_dict()
+    golden(
+        "train__atom_fock", {**_history_arrays(history), **_predictions(result.models)}
+    )
