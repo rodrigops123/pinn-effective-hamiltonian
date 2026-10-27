@@ -21,6 +21,21 @@ Below there is a schematic view of the code structure of this project:
 |   |   |___train_and_eval.py
 |   |___visualization/
 |       |___plot_functions.py
-|___requirements.txt
+|___scripts/
+|   |___migrate_pickles.py
+|___tests/
+|___pyproject.toml
 |___utils.py
 ```
+
+# Setup
+```
+pip install ".[dev]"
+pytest
+```
+`tests/test_golden.py` pins the current numerical behaviour; regenerate it with
+`UPDATE_GOLDEN=1 pytest tests/test_golden.py` only after an intentional change.
+Known bugs are documented as strict `xfail` tests.
+
+Training results are not tracked in git. Legacy `.pkl` results can be converted to a
+format that survives refactoring with `python scripts/migrate_pickles.py`.
