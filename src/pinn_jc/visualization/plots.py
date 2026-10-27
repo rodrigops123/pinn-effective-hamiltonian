@@ -1,20 +1,14 @@
-import os
-import sys
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if project_root not in sys.path:
-    sys.path.append(project_root)
-
-import torch
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
-import scienceplots
+import numpy as np
+import scienceplots  # noqa: F401  (registers the "science" matplotlib styles)
+import torch
+from matplotlib.colors import Normalize, TwoSlopeNorm
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+from pinn_jc.data.simulate import data_jc
 
 plt.style.use(["science", "retro", "grid"])
-import matplotlib.gridspec as gridspec
-import numpy as np
-from src.data_simulation.jaynes_cummings_data import data_jc
-from src.model.train_and_eval import train_test_split
 
 
 def prep_plot_input(
@@ -172,7 +166,9 @@ def plot_expected_values(
 def set_plot_params_states():
     # Layout: 2 rows (Real / Imag) × 3 cols (NN prediction | Simulation | Error)
     # Each panel: x-axis = basis components, y-axis = time
-    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(30, 10), sharex=True, sharey=True, dpi=300)
+    fig, axs = plt.subplots(
+        nrows=2, ncols=3, figsize=(30, 10), sharex=True, sharey=True, dpi=300
+    )
 
     # Row 0: Real parts
     axs[0, 0].set_title(r"\(|\tilde{\psi}_R (t)\rangle\)", fontsize=26)
@@ -189,10 +185,6 @@ def set_plot_params_states():
     )
 
     return fig, axs
-
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import TwoSlopeNorm, Normalize
 
 
 def plot_states(
@@ -433,12 +425,12 @@ def plot_states(
     axs[1, 0].set_xticklabels(major_labels, fontsize=20, rotation=90)
     axs[1, 0].set_xticks(centers, minor=True)
     axs[1, 0].tick_params(axis="x", which="minor", length=2)
-    
+
     axs[1, 1].set_xticks(major_ticks)
     axs[1, 1].set_xticklabels(major_labels, fontsize=20, rotation=90)
     axs[1, 1].set_xticks(centers, minor=True)
     axs[1, 1].tick_params(axis="x", which="minor", length=2)
-    
+
     axs[1, 2].set_xticks(major_ticks)
     axs[1, 2].set_xticklabels(major_labels, fontsize=20, rotation=90)
     axs[1, 2].set_xticks(centers, minor=True)
@@ -553,7 +545,6 @@ def plot_learned_param(
     y_ds = learned_params[0:-1:skip_epochs, :]
     x_ds = np.arange(len(y_ds))
     true_param_line_g1 = [true_param] * len(x_ds)
-    true_param_line_g2 = [0] * len(x_ds)
 
     plt.figure(dpi=300)
     ax = plt.gca()
@@ -624,15 +615,8 @@ def plot_learned_param(
         axins.axhline(
             true_param, linestyle="--", linewidth=1, color=true_line_g1[0].get_color()
         )
-        # axins.axhline(
-        #     0, linestyle="--", linewidth=1, color=true_line_g2[0].get_color()
-        # )
 
-        # tight zoom around convergence
-        ymin = min(y_raw.min(), true_param) - 5e-1 / 5
-        ymax = max(y_raw.max(), true_param) + 5e-2
         axins.set_xlim(x_raw[0], x_raw[-1])
-        # axins.set_ylim(ymin, ymax)
         axins.set_xlabel(r"Epochs", fontsize=6)
         axins.set_ylabel(r"Parameter Value", fontsize=6)
         axins.set_xticks(

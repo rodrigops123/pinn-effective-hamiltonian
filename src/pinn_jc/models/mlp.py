@@ -40,13 +40,11 @@ class Neural_Net(nn.Module):
         )
 
         if self.create_parameter:
-            self.param = nn.Parameter(
-                torch.rand(self.n_paramater), requires_grad=True
-            )
+            self.param = nn.Parameter(torch.rand(self.n_paramater), requires_grad=True)
 
     def forward(self, x):
         for layer, activation, dropout in zip(
-            self.hidden_layers, self.activation, self.dropouts
+            self.hidden_layers, self.activation, self.dropouts, strict=True
         ):
             x = activation(layer(x))
             x = dropout(x)

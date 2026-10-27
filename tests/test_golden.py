@@ -11,9 +11,9 @@ import pytest
 import torch
 
 from conftest import seed_everything
-from src.data_simulation.jaynes_cummings_data import data_jc
-from src.model.loss_functions import hamiltonian_with_params
-from src.model.train_and_eval import train, train_with_parameter
+from pinn_jc.data.simulate import data_jc
+from pinn_jc.training.losses import hamiltonian_with_params
+from pinn_jc.training.trainer import train, train_with_parameter
 
 SIMULATION_CASES = {
     "interaction_fock": dict(
@@ -48,7 +48,10 @@ SIMULATION_CASES = {
 @pytest.mark.parametrize("case", sorted(SIMULATION_CASES))
 def test_data_jc(golden, case, state_frame):
     y, expect, hamiltonian, operators, time = data_jc(
-        tfinal=2 * np.pi, n_time_steps=50, state_frame=state_frame, **SIMULATION_CASES[case]
+        tfinal=2 * np.pi,
+        n_time_steps=50,
+        state_frame=state_frame,
+        **SIMULATION_CASES[case],
     )
     golden(
         f"data_jc__{case}__{state_frame}",
@@ -151,4 +154,6 @@ def test_train(golden):
         picture="atom",
         dims={"atom": 2, "field": 2},
     )
-    golden("train__atom_fock", {**_history_arrays(loss_dict), **_predictions(models_dict)})
+    golden(
+        "train__atom_fock", {**_history_arrays(loss_dict), **_predictions(models_dict)}
+    )
