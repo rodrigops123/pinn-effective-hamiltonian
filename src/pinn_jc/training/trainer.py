@@ -1,6 +1,7 @@
 """PINN training: learn ψ(t) and, optionally, the Hamiltonian couplings."""
 
 import logging
+import math
 
 import torch
 import torch.nn as nn
@@ -8,7 +9,13 @@ from tqdm import tqdm
 
 from pinn_jc import settings
 from pinn_jc.data.simulate import simulate
-from pinn_jc.models import MLP, ComplexStateNet, Couplings, Sine
+from pinn_jc.models import (
+    MLP,
+    ComplexStateNet,
+    Couplings,
+    InitialConditionStateNet,
+    Sine,
+)
 from pinn_jc.physics import Hamiltonian
 from pinn_jc.reproducibility import set_seed
 from pinn_jc.training.config import ExperimentConfig, ModelConfig
@@ -46,6 +53,9 @@ def build_models(output_dim, n_couplings=0, positivity="softplus", model=None):
 
     The construction order (real network, couplings, imaginary network) fixes how the
     random initialisation is drawn; keep it so that a seed reproduces earlier runs.
+    With ``model.hard_initial_condition`` the state is an ``InitialConditionStateNet``
+    whose ψ0 is zero until set (``train`` sets it from the data, ``load_state_dict``
+    restores it).
     """
     model = model or ModelConfig()
     activation = ACTIVATIONS[model.activation]()
@@ -63,7 +73,12 @@ def build_models(output_dim, n_couplings=0, positivity="softplus", model=None):
     couplings = Couplings(n_couplings, positivity) if n_couplings else None
     imag = network()
 
-    state = ComplexStateNet(real, imag).to(device=settings.DEVICE)
+    state = ComplexStateNet(real, imag)
+    if model.hard_initial_condition:
+        state = InitialConditionStateNet(
+            state, torch.zeros(output_dim, dtype=torch.complex64)
+        )
+    state = state.to(device=settings.DEVICE)
     if couplings is not None:
         couplings = couplings.to(device=settings.DEVICE)
     return state, couplings
@@ -109,6 +124,7 @@ def train(config: ExperimentConfig) -> TrainingResult:
     optimizer = torch.optim.Adam(
         parameters, lr=training.learning_rate, amsgrad=training.amsgrad
     )
+    scheduler = _lr_scheduler(optimizer, training)
 
     # States come in the frame of `physics.picture`, so they satisfy its ODE.
     data = simulate(
@@ -136,6 +152,11 @@ def train(config: ExperimentConfig) -> TrainingResult:
         network_time = time_train.detach() / tmax
         validation_time = validation_time / tmax
 
+    if config.model.hard_initial_condition:
+        with torch.no_grad():
+            state.psi0.copy_(sim_state[0])
+            state.t0.copy_(network_time[0, 0])
+
     hamiltonian = Hamiltonian(physics.picture, physics.dims)
     fixed_hamiltonian = None
     if couplings is None:
@@ -148,18 +169,34 @@ def train(config: ExperimentConfig) -> TrainingResult:
     for epoch in tqdm(range(training.epochs), disable=not training.progress_bar):
         optimizer.zero_grad()
 
-        nn_state, dpsi_dt = state_and_time_derivative(state, network_time)
+        # Points in the (possibly growing) time window; all of them by default.
+        n_active = _window_size(epoch, n_train, training)
+        window = slice(None) if n_active == n_train else slice(n_active)
+        window_indices = indices
+        if n_active < n_train and indices is not None:
+            window_indices = indices[indices < n_active]
+
+        nn_state, dpsi_dt = state_and_time_derivative(state, network_time[window])
         if couplings is None:
             H_ = fixed_hamiltonian
+            if H_.dim() == 3:
+                H_ = H_[window]
         else:
             coupling_strength = couplings()
             H_ = hamiltonian.to_torch(
-                physics.params, couplings=coupling_strength, time=time_train.detach()
+                physics.params,
+                couplings=coupling_strength,
+                time=time_train.detach()[window],
             )
 
         loss_ic_value = loss_ic(nn_state, sim_state)
         loss_norm_value = loss_norm(nn_state)
-        loss_data_value = loss_data(nn_state, data.observables, sim_expect, indices)
+        if window_indices is not None and len(window_indices) == 0:
+            loss_data_value = nn_state.real.sum() * 0.0
+        else:
+            loss_data_value = loss_data(
+                nn_state, data.observables, sim_expect[window], window_indices
+            )
         loss_ode_value = loss_ode(H_, nn_state, dpsi_dt, time_scale=time_scale)
 
         total_loss = (
@@ -171,6 +208,8 @@ def train(config: ExperimentConfig) -> TrainingResult:
 
         total_loss.backward()
         optimizer.step()
+        if scheduler is not None:
+            scheduler.step()
 
         history.total_loss.append(float(total_loss.item()))
         history.loss_ic.append(float(loss_ic_value.item()))
@@ -198,6 +237,30 @@ def train(config: ExperimentConfig) -> TrainingResult:
                 )
 
     return TrainingResult(config, state, couplings, history)
+
+
+def _lr_scheduler(optimizer, training):
+    """Learning-rate schedule from ``learning_rate`` to ``final_learning_rate``."""
+    if training.lr_schedule == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=max(training.epochs, 1),
+            eta_min=training.final_learning_rate,
+        )
+    if training.lr_schedule == "exponential":
+        ratio = training.final_learning_rate / training.learning_rate
+        gamma = ratio ** (1 / max(training.epochs, 1))
+        return torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+    return None
+
+
+def _window_size(epoch, n_train, training):
+    """Return how many leading training points the losses see at ``epoch``."""
+    if training.window_epochs == 0 or epoch >= training.window_epochs:
+        return n_train
+    progress = epoch / training.window_epochs
+    fraction = training.window_start + (1 - training.window_start) * progress
+    return max(2, min(n_train, math.ceil(fraction * n_train)))
 
 
 def _log_epoch(epoch, epochs, history):

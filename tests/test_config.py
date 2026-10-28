@@ -75,6 +75,10 @@ def test_fixed_couplings_have_no_learnable_parameters():
         (lambda: ModelConfig(activation="relu"), "activation"),
         (lambda: LossWeights(ode=-1), "non-negative"),
         (lambda: TrainingConfig(epochs=10, learning_rate=0), "learning_rate"),
+        (lambda: TrainingConfig(epochs=10, lr_schedule="step"), "lr_schedule"),
+        (lambda: TrainingConfig(epochs=10, final_learning_rate=0), "final_learning"),
+        (lambda: TrainingConfig(epochs=10, window_start=0), "window_start"),
+        (lambda: TrainingConfig(epochs=10, window_epochs=-1), "window_epochs"),
         (
             lambda: ExperimentConfig.from_dict({**CONFIG, "optimizer": {}}),
             "unknown config sections",
