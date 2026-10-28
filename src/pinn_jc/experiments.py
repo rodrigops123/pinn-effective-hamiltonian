@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Experiment:
+    """A named ``ExperimentConfig`` with its description and seeds."""
+
     name: str
     description: str
     seeds: tuple[int, ...]
@@ -58,6 +60,7 @@ class Experiment:
             )
 
     def to_dict(self) -> dict:
+        """Return the experiment in the YAML layout (``experiment`` section first)."""
         return {
             "experiment": {
                 "name": self.name,
@@ -69,6 +72,7 @@ class Experiment:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Experiment":
+        """Build and validate an experiment from the YAML layout."""
         data = dict(data)
         meta = data.pop("experiment")
         return cls(
@@ -79,6 +83,7 @@ class Experiment:
         )
 
     def with_overrides(self, epochs: int | None = None, seeds=None) -> "Experiment":
+        """Return a copy with a different number of epochs and/or seeds."""
         experiment = self
         if epochs is not None:
             training = replace(self.config.training, epochs=epochs)
@@ -91,11 +96,12 @@ class Experiment:
 
 
 def load_experiment(path: Path | str) -> Experiment:
+    """Read an experiment YAML file."""
     return Experiment.from_dict(yaml.safe_load(Path(path).read_text()))
 
 
 class DirtyWorkingTreeError(RuntimeError):
-    pass
+    """Raised when a run would not map to a commit (uncommitted tracked changes)."""
 
 
 def run_experiment(
@@ -166,6 +172,7 @@ def run_experiment(
 
 
 def summarize(metrics_by_seed: dict[int, dict]) -> dict:
+    """Collect per-seed final metrics, with the mean and std of the couplings."""
     summary = {"seeds": {str(seed): m for seed, m in metrics_by_seed.items()}}
     couplings = [m["couplings"] for m in metrics_by_seed.values() if "couplings" in m]
     if couplings:

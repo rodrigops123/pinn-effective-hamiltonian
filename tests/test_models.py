@@ -64,7 +64,7 @@ def test_couplings_reject_unknown_positivity():
 
 
 def test_build_models_reproduces_the_legacy_initialisation():
-    """Same seed, same weights and couplings as the pre-Phase-4 instantiate_model."""
+    """Same seed, same weights and couplings as the legacy network construction."""
     torch.manual_seed(7)
     legacy_real = LegacyNeuralNet(
         [16, 16], Sine(), output=4, create_parameter=True, n_paramater=2

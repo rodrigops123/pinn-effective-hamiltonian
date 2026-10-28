@@ -1,3 +1,5 @@
+"""Seeding of every random number generator."""
+
 import random
 
 import numpy as np

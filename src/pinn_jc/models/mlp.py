@@ -1,3 +1,5 @@
+"""Fully connected network."""
+
 from collections.abc import Sequence
 from itertools import pairwise
 
@@ -36,6 +38,7 @@ class MLP(nn.Module):
         self.dropouts = nn.ModuleList(nn.Dropout(dropout) for _ in hidden_units)
 
     def forward(self, x):
+        """Map inputs (N, in_features) to outputs (N, out_features)."""
         for layer, activation, dropout in zip(
             self.hidden_layers, self.activations, self.dropouts, strict=True
         ):

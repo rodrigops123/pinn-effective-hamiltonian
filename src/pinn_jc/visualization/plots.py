@@ -34,7 +34,7 @@ LOSS_LABELS = {
 
 
 def use_style(usetex: bool = True) -> None:
-    """Apply the SciencePlots style used for the thesis figures (needs LaTeX if usetex)."""
+    """Apply the publication style (SciencePlots; needs LaTeX if ``usetex``)."""
     import scienceplots  # noqa: F401  (registers the "science" styles)
 
     plt.style.use(list(STYLE))
@@ -110,6 +110,7 @@ def plot_expectations(evaluation: Evaluation) -> Figure:
 
 
 def plot_fidelity(evaluation: Evaluation) -> Figure:
+    """Fidelity between the predicted and the exact state over time."""
     time, time_label = evaluation.time_unit
     fig, ax = plt.subplots(dpi=300)
     ax.plot(time, evaluation.fidelity)

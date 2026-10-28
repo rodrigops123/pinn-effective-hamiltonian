@@ -140,7 +140,7 @@ def test_train_with_learned_couplings(golden, case):
 
 
 def test_train_with_fixed_couplings_and_validation_window(golden):
-    """The pre-Phase-5 fixed-Hamiltonian train(): last 20% of the grid held out,
+    """Fixed couplings: last 20% of the grid held out,
     expectation data at the first instant only."""
     config = ExperimentConfig(
         physics=PhysicsConfig(

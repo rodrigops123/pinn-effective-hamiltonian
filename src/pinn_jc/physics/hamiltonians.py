@@ -41,6 +41,8 @@ def _negative(
 
 @dataclass(frozen=True)
 class Term:
+    """One term ``coefficient * operator * exp(+i frequency t)`` of a Hamiltonian."""
+
     coefficient: Coefficient
     operator: str
     frequency: Callable[[Parameters], float] | None = None
@@ -48,6 +50,8 @@ class Term:
 
 @dataclass(frozen=True)
 class Picture:
+    """A named Hamiltonian: its terms, frame and learnable couplings."""
+
     name: str
     description: str
     frame: Frame
@@ -56,6 +60,7 @@ class Picture:
 
     @property
     def time_dependent(self) -> bool:
+        """Whether any term carries a time-dependent phase."""
         return any(term.frequency is not None for term in self.terms)
 
 
@@ -141,6 +146,7 @@ PICTURES = {
 
 
 def get_picture(name: str) -> Picture:
+    """Look up a picture by name, with a helpful error for unknown names."""
     if name not in PICTURES:
         raise ValueError(f"unknown picture {name!r}; choose from {sorted(PICTURES)}")
     return PICTURES[name]
@@ -193,6 +199,7 @@ class Hamiltonian:
 
     @property
     def time_dependent(self) -> bool:
+        """Whether the picture's Hamiltonian depends on time."""
         return self.picture.time_dependent
 
     def to_qobj(self, params: Parameters) -> qutip.Qobj:
@@ -214,10 +221,22 @@ class Hamiltonian:
         couplings: torch.Tensor | None = None,
         time: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Torch Hamiltonian, shape (D, D), or (N, D, D) for time-dependent pictures.
+        """Build the Hamiltonian as a torch tensor.
 
-        ``couplings`` holds the learnable coefficients in ``picture.couplings`` order
-        and overrides ``params`` for those names; ``time`` has shape (N, 1).
+        Parameters
+        ----------
+        params : Mapping[str, float]
+            Values of every named coefficient (``wc``, ``wa``, couplings).
+        couplings : torch.Tensor, optional
+            Learnable coefficients in ``picture.couplings`` order; they override
+            ``params`` for those names and keep the autograd graph.
+        time : torch.Tensor, optional
+            (N, 1) physical times; required for time-dependent pictures.
+
+        Returns
+        -------
+        torch.Tensor
+            complex64, (D, D), or (N, D, D) for time-dependent pictures.
         """
         learned = self._learned_couplings(couplings)
         if self.time_dependent:

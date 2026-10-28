@@ -1,4 +1,4 @@
-# As atom_fock, from |g> ⊗ |α = 1>, field truncated at 10. Source: apps/train_models.ipynb.
+# As atom_fock, from |g> ⊗ |α = 1>, field truncated at 10 photons.
 experiment:
   name: atom_coherent
   description: Learn g1 and the state from a coherent field (α = 1), rotating frame, on resonance.

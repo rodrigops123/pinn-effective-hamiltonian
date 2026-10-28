@@ -9,6 +9,8 @@ import qutip
 
 @dataclass(frozen=True)
 class InitialState:
+    """An initial state: description, minimal field dimension and builder."""
+
     description: str
     min_field_dim: int
     build: Callable[..., qutip.Qobj]
@@ -53,7 +55,7 @@ INITIAL_STATES = {
 
 
 def initial_state(name: str, dims: Mapping[str, int], **options) -> qutip.Qobj:
-    """Normalized initial state. ``options`` are state parameters (``alpha``, ``r``)."""
+    """Build a normalized initial state; ``options`` are e.g. ``alpha`` or ``r``."""
     if name not in INITIAL_STATES:
         raise ValueError(
             f"unknown initial state {name!r}; choose from {sorted(INITIAL_STATES)}"

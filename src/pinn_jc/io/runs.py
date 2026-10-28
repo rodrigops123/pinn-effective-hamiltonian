@@ -46,6 +46,7 @@ def git_info(path: Path | str = ".") -> dict:
 
 
 def environment_info() -> dict:
+    """Python version and versions of the packages that affect results."""
     packages = ("torch", "qutip", "numpy", "scipy", "pinn-effective-hamiltonian")
     return {
         "python": sys.version.split()[0],
@@ -54,10 +55,12 @@ def environment_info() -> dict:
 
 
 def write_yaml(path: Path, data: dict) -> None:
+    """Write ``data`` as YAML, keeping key order."""
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
 
 
 def final_metrics(history: TrainingHistory) -> dict:
+    """Last value of every loss term, of the couplings and of the validation metrics."""
     metrics = {
         key: getattr(history, key)[-1]
         for key in ("total_loss", "loss_ic", "loss_norm", "loss_data", "loss_ode")
@@ -74,6 +77,7 @@ def final_metrics(history: TrainingHistory) -> dict:
 def save_run(
     result: TrainingResult, run_dir: Path | str, elapsed_seconds: float
 ) -> Path:
+    """Write a run directory (see module docstring); returns its path."""
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=False)
     write_yaml(run_dir / "config.yaml", result.config.to_dict())
@@ -98,6 +102,8 @@ def save_run(
 
 @dataclass
 class LoadedRun:
+    """A run read back from disk by ``load_run``."""
+
     config: ExperimentConfig
     state: ComplexStateNet
     couplings: Couplings | None

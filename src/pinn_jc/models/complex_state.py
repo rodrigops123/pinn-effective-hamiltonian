@@ -1,3 +1,5 @@
+"""Network for the complex state vector ψ(t)."""
+
 import torch
 import torch.nn as nn
 
@@ -14,4 +16,5 @@ class ComplexStateNet(nn.Module):
         self.imag = imag
 
     def forward(self, time: torch.Tensor) -> torch.Tensor:
+        """Map times (N, 1) to the complex state (N, D)."""
         return self.real(time) + 1j * self.imag(time)
