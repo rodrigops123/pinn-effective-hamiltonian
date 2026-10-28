@@ -1,0 +1,37 @@
+# Study of why atom_coherent fails to recover g1 (configs/atom_coherent.yaml).
+# Variant 'ic10': Initial-condition loss weight 10. Every variant uses the same seeds.
+experiment:
+  name: study_coherent_ic10
+  description: atom_coherent study. Initial-condition loss weight 10.
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: coherent
+  init_state_options:
+    alpha: 1.0
+  dims:
+    atom: 2
+    field: 10
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 50000
+  learning_rate: 0.01
+  loss_weights:
+    ic: 10.0
