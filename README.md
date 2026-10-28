@@ -5,8 +5,10 @@ This is a code base used to train a neural network based on the Physics Informed
 
 # Code structure
 ```
-|___apps/                     # notebooks: training runs and figures
+|___apps/                     # notebooks: figures
+|___configs/                  # one YAML file per experiment
 |___scripts/
+|   |___train.py              # train an experiment config, once per seed
 |   |___migrate_pickles.py    # convert legacy result pickles to state_dict format
 |___src/pinn_jc/
 |   |___settings.py           # device
@@ -16,6 +18,8 @@ This is a code base used to train a neural network based on the Physics Informed
 |   |___models/               # MLP, complex state network, learnable couplings
 |   |___training/             # experiment config, losses, training loop, history
 |   |___visualization/        # plotting
+|   |___experiments.py        # experiment files and the multi-seed runner
+|   |___io/runs.py            # save / load run directories
 |   |___io/legacy.py          # load and convert results from earlier code versions
 |___tests/
 |___pyproject.toml
@@ -42,3 +46,21 @@ Known bugs are documented as strict `xfail` tests.
 Training results are not tracked in git. Legacy `.pkl` results can be converted to a
 format that survives refactoring with `uv run python scripts/migrate_pickles.py`, or loaded
 directly with `pinn_jc.io.legacy.load_legacy_pickle`.
+
+# Running experiments
+Each experiment is a YAML file in `configs/`: the physics (picture, true parameters,
+initial state, dimensions), the data (time grid, data points, optional held-out
+validation window), the network, the training settings and an explicit list of seeds.
+```
+uv run python scripts/train.py configs/atom_fock.yaml
+```
+trains every seed and writes `saved_artifacts/runs/<name>/<UTC timestamp>_<commit>/`:
+the experiment as run, the git commit and package versions, the training log, a
+summary across seeds, and per seed the resolved config, weights, loss history and
+final metrics. Load a run with `pinn_jc.io.runs.load_run`. The runner refuses to start
+with uncommitted changes (override with `--allow-dirty`), so every result maps to a
+commit. `--epochs` and `--seeds` override the config for quick checks.
+
+The configs reproduce the experiments of the thesis notebooks, which were removed in
+favour of them and remain in the git history.
+

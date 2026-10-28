@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 import torch
 
-from conftest import seed_everything
 from pinn_jc.data.simulate import simulate
 from pinn_jc.physics import Hamiltonian
 from pinn_jc.training.config import (
@@ -19,7 +18,7 @@ from pinn_jc.training.config import (
     PhysicsConfig,
     TrainingConfig,
 )
-from pinn_jc.training.trainer import train, train_with_parameter
+from pinn_jc.training.trainer import train
 
 SIMULATION_CASES = {
     "interaction_fock": dict(
@@ -92,25 +91,22 @@ def test_hamiltonian_to_torch(golden, picture):
 
 TRAINING_CASES = {
     "atom_fock": dict(
-        params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
         picture="atom",
+        params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
         init_state="fock",
         dims={"atom": 2, "field": 2},
-        n_parameter=1,
     ),
     "atom_coherent": dict(
-        params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
         picture="atom",
+        params={"wc": 1.0, "wa": 1.0, "g1": 1.0},
         init_state="coherent",
         dims={"atom": 2, "field": 4},
-        n_parameter=1,
     ),
     "rabi2_fock_usc": dict(
+        picture="rabi2_ip",
         params={"wc": 1.0, "wa": 1.0, "g1": 1.0, "g2": 1.0},
-        picture="rabi2",
         init_state="fock",
         dims={"atom": 2, "field": 4},
-        n_parameter=2,
     ),
 }
 
@@ -129,20 +125,17 @@ def _predictions(models, n_time_steps=40, tfinal=2 * np.pi):
 
 
 @pytest.mark.parametrize("case", sorted(TRAINING_CASES))
-def test_train_with_parameter(golden, case):
-    seed_everything(0)
-    n_time_steps = 40
-    models, loss_dict = train_with_parameter(
-        epochs=15,
-        tfinal=2 * np.pi,
-        n_time_steps=n_time_steps,
-        n_points_loss=n_time_steps,
-        is_scaled=False,
-        **TRAINING_CASES[case],
+def test_train_with_learned_couplings(golden, case):
+    config = ExperimentConfig(
+        physics=PhysicsConfig(**TRAINING_CASES[case]),
+        data=DataConfig(tfinal=2 * np.pi, n_time_steps=40, n_data_points=40),
+        training=TrainingConfig(epochs=15, seed=0, progress_bar=False),
     )
+    result = train(config)
+    history = result.history.to_legacy_dict()
     golden(
-        f"train_with_parameter__{case}",
-        {**_history_arrays(loss_dict), **_predictions(models)},
+        f"train_learned__{case}",
+        {**_history_arrays(history), **_predictions(result.models)},
     )
 
 
@@ -163,5 +156,6 @@ def test_train_with_fixed_couplings_and_validation_window(golden):
     result = train(config)
     history = result.history.to_legacy_dict()
     golden(
-        "train__atom_fock", {**_history_arrays(history), **_predictions(result.models)}
+        "train_fixed__atom_fock",
+        {**_history_arrays(history), **_predictions(result.models)},
     )
