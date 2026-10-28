@@ -7,6 +7,7 @@ This is a code base used to train a neural network based on the Physics Informed
 ```
 |___apps/figures.ipynb       # interactive figures (saved runs and thesis pickles)
 |___configs/                  # one YAML file per experiment
+|___examples/                 # self-contained exponential-decay PINN from the dissertation
 |___scripts/
 |   |___train.py              # train an experiment config, once per seed
 |   |___make_figures.py       # render the figures of saved runs
