@@ -68,5 +68,3 @@ physics/ (operators, PICTURES registry, INITIAL_STATES, Frame)
   - Do not add AI attribution or co-author lines to commits or pull requests.
 - **Notebooks:** `examples/exponential_decay_pinn.ipynb` is a self-contained
   introductory example, independent of `pinn_jc`; keep its code unchanged. Notebook outputs are stripped on commit.
-- **iCloud:** if `import pinn_jc` fails or files named `name 2.py` appear, iCloud is
-  syncing the repo. Run `chflags -R nohidden .venv`, and never `git add` the copies.
