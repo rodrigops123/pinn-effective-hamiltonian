@@ -153,12 +153,30 @@ At the accuracy the network reaches, a wrong coupling with a wrong state costs a
 much as the true one. The obstacle for the squeezed vacuum is weak identifiability of
 g1 from these two observables, not the network's capacity or the length of training.
 
+## Round 4: the recipe on the Fock experiments
+
+Commit `eed7687`. Does the coherent recipe (truncation, ODE mean, lr 1e-3) also suit the
+experiments that already worked? Four seeds, 30k epochs, against their previous
+settings.
+
+| Experiment | Settings | g1 per seed | g1 jitter (std, last 1000 epochs) | Mean fidelity | Expectation-value error |
+|---|---|---|---|---|---|
+| `atom_fock` | previous | 0.9993 1.0010 0.9983 0.9990 | 1.1 × 10⁻³ | 0.99995 | 0.0045 |
+| `atom_fock` | recipe | 0.9999 0.9998 0.9996 0.9998 | 7.4 × 10⁻⁵ | 1.00000 | 0.0023 |
+| `atom_fock_superposition` | previous | 0.9991 0.9977 0.9987 0.9985 | 9.3 × 10⁻⁴ | 0.99992 | 0.0049 |
+| `atom_fock_superposition` | recipe | 0.9993 1.0000 1.0000 0.9999 | 1.8 × 10⁻⁴ | 1.00000 | 0.0020 |
+
+The recipe reduces the g1 error about fivefold, the epoch-to-epoch jitter of g1 by 5–15×
+and the expectation-value error by half, at the same cost per epoch. All `atom_*`
+experiments now use it. The `rabi2_ip` experiments cannot use the excitation truncation
+(the counter-rotating terms change the excitation number) and keep their settings.
+
 ## Conclusions and open questions
 
 1. For multi-photon initial states, use the excitation-number truncation, a loss
    balance independent of D (`ode_reduction: mean`, or an initial-condition weight that
-   grows with D), and learning rate 1e-3. `configs/atom_coherent.yaml` has not been
-   changed yet.
+   grows with D), and learning rate 1e-3. `configs/atom_coherent.yaml`,
+   `atom_fock.yaml` and `atom_fock_superposition.yaml` use this recipe.
 2. Hard initial conditions, learning-rate decay, scaled time, a growing time window and
    larger initial-condition weights did not help in this setting. The options remain
    available (all off by default) so that these results can be reproduced.
