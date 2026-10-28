@@ -114,6 +114,13 @@ plots.save_figure(fig, "figures/atom_fock_expectations")
   couplings follow the order of `Picture.couplings`.
 - **Scaled time.** With `data.scale_time` the network sees τ = t/T and the ODE becomes
   dψ/dτ = −iTH(t)ψ, with H evaluated at physical time.
+- **Truncation.** `physics.truncation: field` (default) keeps the full product basis;
+  `excitation` keeps |s,n⟩ with s + n < N, which removes the stationary truncation
+  artefact |e, N−1⟩ of Jaynes–Cummings (see `docs/studies/coherent_squeeze.md`).
+- **Training options** (all off by default): `training.ode_reduction` (`sum` or `mean`
+  over components), `training.lr_schedule` (`cosine`, `exponential`) with
+  `final_learning_rate`, a growing time window (`window_start`, `window_epochs`) and
+  `model.hard_initial_condition`.
 - **Fidelity** of a prediction: |⟨ψ|ψ_NN⟩|² / ‖ψ_NN‖².
 - Figures show time as g1·t when g1 is defined.
 
@@ -129,6 +136,8 @@ the physics they were trained with when evaluating them.
 
 ```
 configs/                     one YAML file per experiment
+configs/studies/             method studies (see docs/studies/)
+docs/studies/                study reports
 scripts/
     train.py                 train an experiment, once per seed
     make_figures.py          render the figures of saved runs
