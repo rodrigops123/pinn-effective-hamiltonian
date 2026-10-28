@@ -171,6 +171,33 @@ and the expectation-value error by half, at the same cost per epoch. All `atom_*
 experiments now use it. The `rabi2_ip` experiments cannot use the excitation truncation
 (the counter-rotating terms change the excitation number) and keep their settings.
 
+## Round 5: the loss balance and learning rate on the `rabi2_ip` experiments
+
+Commit `df5dd0b`. The excitation truncation does not apply to `rabi2_ip`, so the check
+compares the previous settings with the mean ODE reduction and learning rate 1e-3.
+Four seeds; true couplings g1 = 1 and g2 = 0 (`rabi2_jc_fock`) or g1 = g2 = 1
+(`rabi2_g_equals_omega_fock`).
+
+| Experiment | Settings | g1 per seed | g2 per seed | Mean fidelity (min) |
+|---|---|---|---|---|
+| `rabi2_jc_fock` | previous | 0.999 0.998 0.457 1.000 | 0.079 0.096 0.060 0.083 | 0.881 (0.42) |
+| `rabi2_jc_fock` | ODE mean + lr 1e-3 | 1.000 1.000 1.000 1.000 | 0.649 0.713 0.532 0.720 | 1.000 (1.000) |
+| `rabi2_g_equals_omega_fock` | previous | 0.993 0.993 0.992 0.991 | 0.995 0.994 0.993 0.997 | 0.9998 (0.9994) |
+| `rabi2_g_equals_omega_fock` | ODE mean + lr 1e-3 | 0.999 0.978 0.999 0.847 | 1.000 0.990 1.000 0.021 | 0.885 (0.010) |
+
+- `rabi2_g_equals_omega_fock`: the change hurts (one seed fails, g1 and g2 fluctuate
+  10× more), so the previous settings stay.
+- `rabi2_jc_fock`: the change recovers g1 and the state on every seed (the previous
+  settings fail on seed 104), but g2 is **not converged in either setting**. From its
+  initial value (1.19 for seed 100) it drifts slowly towards 0: 0.52, 0.20, 0.11, 0.08 at
+  epochs 1k, 5k, 20k, 50k with lr 1e-2, and 1.13, 1.03, 0.85, 0.65 with lr 1e-3. The
+  final g2 thus measures training length rather than the data. This is expected: at
+  ωc = ωa = 100 the counter-rotating terms oscillate as e^{±200it}, about 10 rad per
+  grid step (Δt = 0.05), so the grid does not resolve them and their effect on the
+  dynamics is of order g2/2ω. The previous settings stay; the experiment needs a
+  redesign (smaller ω, a finer grid, or longer training with g2 reported as a
+  trajectory) before its g2 supports a claim.
+
 ## Conclusions and open questions
 
 1. For multi-photon initial states, use the excitation-number truncation, a loss
@@ -184,6 +211,7 @@ experiments now use it. The `rabi2_ip` experiments cannot use the excitation tru
    coherences (⟨a⟩, ⟨σx⟩) or the photon-number distribution P(n, t) would make the
    spurious solution costly; whether they can be assumed measured is a modelling
    decision. Multi-start or warm-up strategies for g1 would not remove the flat region.
+4. `rabi2_jc_fock` recovers g1 but cannot determine g2 as designed (round 5).
 
 ## Reproducing
 
