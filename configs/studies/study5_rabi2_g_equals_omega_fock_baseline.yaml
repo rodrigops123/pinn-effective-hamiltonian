@@ -1,0 +1,36 @@
+# Does the loss balance and learning rate of the atom_* recipe (docs/studies/coherent_squeeze.md)
+# also suit rabi2_g_equals_omega_fock (configs/rabi2_g_equals_omega_fock.yaml)? Variant 'baseline': The experiment as configured.
+experiment:
+  name: study5_rabi2_g_equals_omega_fock_baseline
+  description: rabi2_g_equals_omega_fock with the atom_* recipe check. The experiment
+    as configured.
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: rabi2_ip
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+    g2: 1.0
+  init_state: fock
+  dims:
+    atom: 2
+    field: 4
+  positivity: softplus
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 400
+  n_data_points: 400
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 30000
+  learning_rate: 0.01
