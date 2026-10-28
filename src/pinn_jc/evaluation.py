@@ -15,6 +15,7 @@ from pinn_jc.data.simulate import simulate
 from pinn_jc.io.legacy import as_models
 from pinn_jc.io.runs import LoadedRun
 from pinn_jc.physics import Frame
+from pinn_jc.physics.basis import basis_indices
 from pinn_jc.training.config import PhysicsConfig
 
 OBSERVABLE_LABELS = (
@@ -41,12 +42,12 @@ class Evaluation:
     def basis_labels(self) -> list[str]:
         """Return LaTeX labels |s,n> of the basis states, in vector order."""
         atom_names = ("g", "e") if self.physics.dims["atom"] == 2 else None
+        n_field = self.physics.dims["field"]
         labels = []
-        for level in range(self.physics.dims["atom"]):
+        for index in basis_indices(self.physics.dims, self.physics.truncation):
+            level, n = divmod(int(index), n_field)
             name = atom_names[level] if atom_names else str(level)
-            labels += [
-                rf"$|{name},{n}\rangle$" for n in range(self.physics.dims["field"])
-            ]
+            labels.append(rf"$|{name},{n}\rangle$")
         return labels
 
     @property
@@ -100,6 +101,7 @@ def evaluate(
         picture=physics.picture,
         dims=physics.dims,
         init_state_options=physics.init_state_options,
+        truncation=physics.truncation,
     )
     time = data.time.detach()
     network_time = time / time.max() if scale_time else time

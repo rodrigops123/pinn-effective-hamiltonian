@@ -8,9 +8,11 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from pinn_jc.physics import INITIAL_STATES, get_picture
+from pinn_jc.physics.basis import TRUNCATIONS, basis_indices
 
 ACTIVATIONS = ("sine", "tanh")
 LR_SCHEDULES = ("constant", "cosine", "exponential")
+ODE_REDUCTIONS = ("sum", "mean")
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,7 @@ class PhysicsConfig:
     ``params`` holds the true parameters used to simulate the data: ``wc``, ``wa`` and
     the picture's couplings. With ``learn_couplings`` the couplings are learned (their
     true values are only used for the data); otherwise they are fixed to ``params``.
+    ``truncation`` selects the basis the PINN works in (``physics.basis``).
     """
 
     picture: str
@@ -29,6 +32,7 @@ class PhysicsConfig:
     init_state_options: dict[str, float] = field(default_factory=dict)
     learn_couplings: bool = True
     positivity: str = "softplus"
+    truncation: str = "field"
 
     def __post_init__(self):
         picture = get_picture(self.picture)
@@ -48,11 +52,15 @@ class PhysicsConfig:
             raise ValueError(
                 f"positivity must be 'softplus' or 'abs', got {self.positivity!r}"
             )
+        if self.truncation not in TRUNCATIONS:
+            raise ValueError(
+                f"truncation must be one of {TRUNCATIONS}, got {self.truncation!r}"
+            )
 
     @property
     def hilbert_dim(self) -> int:
-        """Dimension D of the atom-cavity Hilbert space."""
-        return self.dims["atom"] * self.dims["field"]
+        """Dimension D of the (truncated) atom-cavity Hilbert space."""
+        return len(basis_indices(self.dims, self.truncation))
 
     @property
     def n_couplings(self) -> int:
@@ -148,7 +156,9 @@ class TrainingConfig:
     ``final_learning_rate`` over the epochs ("cosine" or "exponential"; "constant"
     keeps it fixed). With ``window_epochs`` > 0 the losses see a growing time window:
     the first ``window_start`` fraction of the training grid at epoch 0, widening
-    linearly to the whole grid at epoch ``window_epochs``.
+    linearly to the whole grid at epoch ``window_epochs``. ``ode_reduction`` combines
+    the per-component ODE residuals: "sum" over the D components, or "mean", which
+    keeps the weight of the ODE loss relative to the others independent of D.
     """
 
     epochs: int
@@ -162,6 +172,7 @@ class TrainingConfig:
     final_learning_rate: float = 1e-4
     window_start: float = 1.0
     window_epochs: int = 0
+    ode_reduction: str = "sum"
 
     def __post_init__(self):
         if isinstance(self.loss_weights, dict):
@@ -184,6 +195,11 @@ class TrainingConfig:
             )
         if not 0 < self.window_start <= 1:
             raise ValueError(f"window_start must be in (0, 1], got {self.window_start}")
+        if self.ode_reduction not in ODE_REDUCTIONS:
+            raise ValueError(
+                f"ode_reduction must be one of {ODE_REDUCTIONS}, "
+                f"got {self.ode_reduction!r}"
+            )
         if self.window_epochs < 0:
             raise ValueError(
                 f"window_epochs must be non-negative, got {self.window_epochs}"

@@ -135,6 +135,7 @@ def train(config: ExperimentConfig) -> TrainingResult:
         picture=physics.picture,
         dims=physics.dims,
         init_state_options=physics.init_state_options,
+        truncation=physics.truncation,
     )
     n_train = data_config.n_train
     time = data.time
@@ -157,7 +158,9 @@ def train(config: ExperimentConfig) -> TrainingResult:
             state.psi0.copy_(sim_state[0])
             state.t0.copy_(network_time[0, 0])
 
-    hamiltonian = Hamiltonian(physics.picture, physics.dims)
+    hamiltonian = Hamiltonian(
+        physics.picture, physics.dims, truncation=physics.truncation
+    )
     fixed_hamiltonian = None
     if couplings is None:
         fixed_hamiltonian = hamiltonian.to_torch(
@@ -197,7 +200,13 @@ def train(config: ExperimentConfig) -> TrainingResult:
             loss_data_value = loss_data(
                 nn_state, data.observables, sim_expect[window], window_indices
             )
-        loss_ode_value = loss_ode(H_, nn_state, dpsi_dt, time_scale=time_scale)
+        loss_ode_value = loss_ode(
+            H_,
+            nn_state,
+            dpsi_dt,
+            time_scale=time_scale,
+            reduction=training.ode_reduction,
+        )
 
         total_loss = (
             weights.ic * loss_ic_value

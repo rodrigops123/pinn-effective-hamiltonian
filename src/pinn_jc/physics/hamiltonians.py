@@ -12,10 +12,12 @@ couplings) or a function of ``params``.
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+import numpy as np
 import qutip
 import torch
 
 from pinn_jc import settings
+from pinn_jc.physics.basis import basis_indices, check_closed
 from pinn_jc.physics.frames import Frame
 from pinn_jc.physics.operators import operator
 
@@ -184,18 +186,33 @@ def coupling_label(picture: str, coupling: str) -> str:
 
 
 class Hamiltonian:
-    """A picture's Hamiltonian for given dimensions, with operators built once."""
+    """A picture's Hamiltonian for given dimensions, with operators built once.
 
-    def __init__(self, picture: str, dims: Mapping[str, int], device=settings.DEVICE):
+    ``to_qobj`` always acts on the full product basis (simulation); ``to_torch`` acts
+    on the basis kept by ``truncation`` (see ``physics.basis``), which every term
+    must leave closed.
+    """
+
+    def __init__(
+        self,
+        picture: str,
+        dims: Mapping[str, int],
+        device=settings.DEVICE,
+        truncation: str = "field",
+    ):
         self.picture = get_picture(picture)
         self.dims = dict(dims)
         self.device = device
         names = {term.operator for term in self.picture.terms}
         self._qobj_operators = {name: operator(name, dims) for name in names}
-        self._torch_operators = {
-            name: torch.tensor(op.full(), dtype=torch.complex64, device=device)
-            for name, op in self._qobj_operators.items()
-        }
+        kept = basis_indices(dims, truncation)
+        self._torch_operators = {}
+        for name, op in self._qobj_operators.items():
+            matrix = op.full()
+            check_closed(matrix, kept, f"operator {name!r}")
+            self._torch_operators[name] = torch.tensor(
+                matrix[np.ix_(kept, kept)], dtype=torch.complex64, device=device
+            )
 
     @property
     def time_dependent(self) -> bool:
