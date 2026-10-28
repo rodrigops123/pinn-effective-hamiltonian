@@ -2,7 +2,7 @@
 experiment:
   name: atom_squeeze
   description: Learn g1 and the state from a squeezed vacuum (r = 1), rotating frame, on resonance.
-  seeds: [42, 43]
+  seeds: [42, 43, 44, 45, 46]
 physics:
   picture: atom
   params: {wc: 1.0, wa: 1.0, g1: 1.0}
