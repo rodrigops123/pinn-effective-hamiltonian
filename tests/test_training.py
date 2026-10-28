@@ -3,11 +3,12 @@
 import logging
 
 import numpy as np
+import pytest
 import torch
 
 from pinn_jc.training.config import ExperimentConfig
-from pinn_jc.training.losses import loss_data
-from pinn_jc.training.trainer import data_indices, train
+from pinn_jc.training.losses import loss_data, loss_ode, state_and_time_derivative
+from pinn_jc.training.trainer import build_models, data_indices, train
 
 
 def _config(**overrides):
@@ -69,6 +70,42 @@ def test_loss_data_is_the_mae_of_expectation_values():
 
     assert loss_data(state, operators, expect, torch.tensor([0])).item() == 0.5
     np.testing.assert_allclose(loss_data(state, operators, expect).item(), 0.32)
+
+
+def _batched_backward_time_derivative(psi, time):
+    """dψ/dτ by 2D batched reverse-mode passes, as loss_ode computed it before."""
+    n, d = psi.shape
+    eye = torch.eye(d, dtype=psi.dtype)
+    grad_outputs = torch.cat(
+        [eye[:, None, :].expand(d, n, d), (1j * eye)[:, None, :].expand(d, n, d)]
+    )
+    grads = torch.autograd.grad(
+        psi, time, grad_outputs, is_grads_batched=True, create_graph=True
+    )[0].squeeze(-1)
+    return (grads[:d] + 1j * grads[d:]).T
+
+
+@pytest.mark.parametrize("dim", [4, 20])
+def test_forward_mode_time_derivative_matches_batched_backward(dim):
+    """The one-pass derivative is the one the 2D backward passes gave, and so are the
+    parameter gradients of loss_ode."""
+    torch.manual_seed(0)
+    state, _ = build_models(dim)
+    time = torch.linspace(0, 1, 50).reshape(-1, 1).requires_grad_(True)
+    hamiltonian = torch.randn(dim, dim, dtype=torch.complex64)
+    hamiltonian = hamiltonian + hamiltonian.mH
+    parameters = list(state.parameters())
+
+    psi, dpsi_dt = state_and_time_derivative(state, time)
+    reference = _batched_backward_time_derivative(state(time), time)
+    gradients = torch.autograd.grad(loss_ode(hamiltonian, psi, dpsi_dt), parameters)
+    reference_gradients = torch.autograd.grad(
+        loss_ode(hamiltonian, state(time), reference), parameters
+    )
+
+    torch.testing.assert_close(dpsi_dt, reference)
+    for actual, expected in zip(gradients, reference_gradients, strict=True):
+        torch.testing.assert_close(actual, expected, rtol=1e-4, atol=1e-6)
 
 
 def test_validation_window_is_held_out_and_evaluated():

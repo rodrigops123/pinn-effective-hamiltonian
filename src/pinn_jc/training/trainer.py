@@ -13,7 +13,13 @@ from pinn_jc.physics import Hamiltonian
 from pinn_jc.reproducibility import set_seed
 from pinn_jc.training.config import ExperimentConfig, ModelConfig
 from pinn_jc.training.history import TrainingHistory, TrainingResult
-from pinn_jc.training.losses import loss_data, loss_ic, loss_norm, loss_ode
+from pinn_jc.training.losses import (
+    loss_data,
+    loss_ic,
+    loss_norm,
+    loss_ode,
+    state_and_time_derivative,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +133,7 @@ def train(config: ExperimentConfig) -> TrainingResult:
     if data_config.scale_time:
         tmax = time.max().detach()
         time_scale = float(tmax.item())
-        network_time = (time_train.detach() / tmax).requires_grad_(True)
+        network_time = time_train.detach() / tmax
         validation_time = validation_time / tmax
 
     hamiltonian = Hamiltonian(physics.picture, physics.dims)
@@ -142,7 +148,7 @@ def train(config: ExperimentConfig) -> TrainingResult:
     for epoch in tqdm(range(training.epochs), disable=not training.progress_bar):
         optimizer.zero_grad()
 
-        nn_state = state(network_time)
+        nn_state, dpsi_dt = state_and_time_derivative(state, network_time)
         if couplings is None:
             H_ = fixed_hamiltonian
         else:
@@ -154,7 +160,7 @@ def train(config: ExperimentConfig) -> TrainingResult:
         loss_ic_value = loss_ic(nn_state, sim_state)
         loss_norm_value = loss_norm(nn_state)
         loss_data_value = loss_data(nn_state, data.observables, sim_expect, indices)
-        loss_ode_value = loss_ode(H_, nn_state, network_time, time_scale=time_scale)
+        loss_ode_value = loss_ode(H_, nn_state, dpsi_dt, time_scale=time_scale)
 
         total_loss = (
             weights.ic * loss_ic_value

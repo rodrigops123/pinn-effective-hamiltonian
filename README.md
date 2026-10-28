@@ -42,12 +42,19 @@ Every experiment is a YAML file in `configs/`:
 | `rabi2_jc_fock` | Rabi in the interaction picture, JC data (g2 = 0), ω = 100 g1 | \|e,0⟩, N = 2 | g1, g2 | 5 × 50 000 | 25 min |
 | `rabi2_g_equals_omega_fock` | Rabi in the interaction picture, g1 = g2 = ω | \|e,0⟩, N = 4 | g1, g2 | 5 × 30 000 | 20 min |
 
-\* single CPU, measured on the development machine.
+\* single process, measured on the development machine before dψ/dt was computed in one
+forward-mode pass; since then `atom_coherent` and `atom_squeeze` train about 4–5× faster
+per epoch, and the other experiments 5–20% faster.
 
 ```bash
 uv run python scripts/train.py configs/atom_fock.yaml                       # every seed
 uv run python scripts/train.py configs/atom_fock.yaml --epochs 200 --seeds 42 --allow-dirty   # quick check
+uv run python scripts/train.py configs/atom_coherent.yaml --workers 5      # 5 seeds at a time
 ```
+
+`--workers N` trains N seeds at once, each in its own process on one thread; a seed gives
+the same result as when trained alone. On an M3 Pro (5 performance + 6 efficiency
+cores), throughput stops growing at about 5–8 workers, roughly 3.5× a single process.
 
 Each run writes `saved_artifacts/runs/<name>/<UTC timestamp>_<commit>/`:
 

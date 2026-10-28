@@ -1,7 +1,8 @@
 """Physics invariants: the exact solution must satisfy the equation the PINN enforces.
 
 The exact state is built in closed form with ``torch.matrix_exp`` so that the real
-``loss_ode`` (autograd time derivative) is exercised, not a finite-difference proxy.
+``loss_ode``, with the forward-mode time derivative of ``state_and_time_derivative``, is
+exercised, not a finite-difference proxy.
 """
 
 import numpy as np
@@ -11,7 +12,7 @@ import torch
 
 from pinn_jc.data.simulate import simulate
 from pinn_jc.physics import Hamiltonian, initial_state
-from pinn_jc.training.losses import loss_ode
+from pinn_jc.training.losses import loss_ode, state_and_time_derivative
 
 DIMS = {"atom": 2, "field": 3}
 ODE_TOLERANCE = 1e-4  # float32 autograd residual of the exact solution is ~1e-6
@@ -56,11 +57,14 @@ def test_loss_ode_vanishes_on_exact_solution(picture):
     time = _time_grid()
     psi0 = _to_torch(initial_state("fock", DIMS)).ravel()
     hamiltonian = Hamiltonian(picture, DIMS)
-    psi = _exact_state(_to_torch(hamiltonian.to_qobj(params)), psi0, time)
+    exact = _to_torch(hamiltonian.to_qobj(params))
+    psi, dpsi_dt = state_and_time_derivative(
+        lambda t: _exact_state(exact, psi0, t), time
+    )
 
     hamiltonian = hamiltonian.to_torch(params, torch.tensor(couplings), time)
 
-    assert loss_ode(hamiltonian, psi, time).item() < ODE_TOLERANCE
+    assert loss_ode(hamiltonian, psi, dpsi_dt).item() < ODE_TOLERANCE
 
 
 def test_loss_ode_vanishes_on_exact_interaction_picture_solution():
@@ -68,18 +72,21 @@ def test_loss_ode_vanishes_on_exact_interaction_picture_solution():
     params = {"wc": 1.3, "wa": 1.0, "g1": 0.7, "g2": 0.4}
     time = _time_grid()
     psi0 = _to_torch(initial_state("fock", DIMS)).ravel()
-    psi = _exact_state(
-        _to_torch(Hamiltonian("rabi2", DIMS).to_qobj(params)),
-        psi0,
+    psi, dpsi_dt = state_and_time_derivative(
+        lambda t: _exact_state(
+            _to_torch(Hamiltonian("rabi2", DIMS).to_qobj(params)),
+            psi0,
+            t,
+            frame_hamiltonian=_to_torch(_free_hamiltonian(params, DIMS)),
+        ),
         time,
-        frame_hamiltonian=_to_torch(_free_hamiltonian(params, DIMS)),
     )
 
     hamiltonian = Hamiltonian("rabi2_ip", DIMS).to_torch(
         params, torch.tensor([0.7, 0.4]), time
     )
 
-    assert loss_ode(hamiltonian, psi, time).item() < ODE_TOLERANCE
+    assert loss_ode(hamiltonian, psi, dpsi_dt).item() < ODE_TOLERANCE
 
 
 def _finite_difference_residual(states, time, hamiltonian):
@@ -158,18 +165,27 @@ def test_loss_ode_vanishes_on_exact_solution_in_scaled_time(picture):
     """The network sees τ = t / T; loss_ode then enforces dψ/dτ = -i T H(t) ψ."""
     params = {"wc": 1.3, "wa": 1.0, "g1": 0.7, "g2": 0.4}
     total_time = 2 * np.pi
-    tau = torch.linspace(0, 1, 200).reshape(-1, 1).requires_grad_(True)
-    time = tau * total_time
+    tau = torch.linspace(0, 1, 200).reshape(-1, 1)
     psi0 = _to_torch(initial_state("fock", DIMS)).ravel()
     lab = picture == "rabi2_ip"
-    psi = _exact_state(
-        _to_torch(Hamiltonian("rabi2" if lab else picture, DIMS).to_qobj(params)),
-        psi0,
-        time,
-        frame_hamiltonian=_to_torch(_free_hamiltonian(params, DIMS)) if lab else None,
+    psi, dpsi_dtau = state_and_time_derivative(
+        lambda t: _exact_state(
+            _to_torch(Hamiltonian("rabi2" if lab else picture, DIMS).to_qobj(params)),
+            psi0,
+            t * total_time,
+            frame_hamiltonian=(
+                _to_torch(_free_hamiltonian(params, DIMS)) if lab else None
+            ),
+        ),
+        tau,
     )
     couplings = torch.tensor([0.7, 0.4] if lab else [0.7])
 
-    hamiltonian = Hamiltonian(picture, DIMS).to_torch(params, couplings, time.detach())
+    hamiltonian = Hamiltonian(picture, DIMS).to_torch(
+        params, couplings, tau * total_time
+    )
 
-    assert loss_ode(hamiltonian, psi, tau, time_scale=total_time).item() < ODE_TOLERANCE
+    assert (
+        loss_ode(hamiltonian, psi, dpsi_dtau, time_scale=total_time).item()
+        < ODE_TOLERANCE
+    )

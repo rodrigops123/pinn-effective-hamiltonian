@@ -18,7 +18,7 @@ uv sync --all-groups                      # environment (Python 3.12, uv.lock)
 uv run pytest                             # all tests, ~10 s
 uv run ruff check . && uv run ruff format .
 uv add <pkg> / uv add --group dev <pkg>   # never hand-edit pins
-uv run python scripts/train.py configs/<name>.yaml [--epochs N --seeds S --allow-dirty]
+uv run python scripts/train.py configs/<name>.yaml [--epochs N --seeds S --workers W --allow-dirty]
 uv run python scripts/make_figures.py saved_artifacts/runs/<name>/<run>
 UPDATE_GOLDEN=1 uv run pytest "tests/test_golden.py::<test>"   # only for deliberate result changes
 ```
