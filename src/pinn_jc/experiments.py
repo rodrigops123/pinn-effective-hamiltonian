@@ -19,17 +19,24 @@ An experiment file is an ExperimentConfig plus an ``experiment`` section::
         train.log         training log of every seed
         summary.json      final metrics of every seed, mean and std of the couplings
         seed_<s>/         one run directory per seed (see pinn_jc.io.runs)
+
+With ``workers`` > 1 the seeds train in parallel processes, one torch thread each;
+``train.log`` still lists the seeds in order.
 """
 
+import io
 import json
 import logging
+import multiprocessing
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
+import torch
 import yaml
 
 from pinn_jc.io.runs import environment_info, git_info, save_run, write_yaml
@@ -109,12 +116,17 @@ def run_experiment(
     output_root: Path | str = "saved_artifacts/runs",
     allow_dirty: bool = False,
     progress_bar: bool = True,
+    workers: int = 1,
 ) -> Path:
     """Train every seed of ``experiment`` and save the results; returns the output dir.
 
     Refuses to run with uncommitted changes to tracked files unless ``allow_dirty``,
-    so that every stored result maps to a commit.
+    so that every stored result maps to a commit. With ``workers`` > 1, up to that
+    many seeds train at once, each in its own process with one torch thread and no
+    progress bar.
     """
+    if workers < 1:
+        raise ValueError(f"workers must be at least 1, got {workers}")
     git = git_info(Path(__file__).parent)
     if git["dirty"] and not allow_dirty:
         raise DirtyWorkingTreeError(
@@ -137,19 +149,25 @@ def run_experiment(
     if package_logger.getEffectiveLevel() > logging.INFO:
         package_logger.setLevel(logging.INFO)
     package_logger.addHandler(handler)
+    configs = {
+        seed: replace(
+            experiment.config,
+            training=replace(
+                experiment.config.training,
+                seed=seed,
+                progress_bar=progress_bar and workers == 1,
+            ),
+        )
+        for seed in experiment.seeds
+    }
     summaries = {}
     try:
-        for seed in experiment.seeds:
-            logger.info("%s: seed %d", experiment.name, seed)
-            training = replace(
-                experiment.config.training, seed=seed, progress_bar=progress_bar
-            )
-            config = replace(experiment.config, training=training)
-            start = time.perf_counter()
-            result = train(config)
-            save_run(result, out_dir / f"seed_{seed}", time.perf_counter() - start)
-            summaries[seed] = json.loads(
-                (out_dir / f"seed_{seed}" / "metrics.json").read_text()
+        if workers == 1:
+            for seed, config in configs.items():
+                summaries[seed] = _train_seed(experiment.name, config, out_dir)
+        else:
+            summaries = _train_seeds_in_parallel(
+                experiment.name, configs, out_dir, workers, handler
             )
     finally:
         package_logger.removeHandler(handler)
@@ -161,6 +179,8 @@ def run_experiment(
         "git": git,
         "environment": environment_info(),
         "command": sys.argv,
+        "workers": workers,
+        "torch_threads": 1 if workers > 1 else torch.get_num_threads(),
         "started_utc": started.isoformat(),
         "finished_utc": datetime.now(UTC).isoformat(),
     }
@@ -169,6 +189,59 @@ def run_experiment(
         json.dumps(summarize(summaries), indent=2) + "\n"
     )
     return out_dir
+
+
+def _train_seed(name: str, config: ExperimentConfig, out_dir: Path) -> dict:
+    """Train one seed, save its run directory and return its final metrics."""
+    seed = config.training.seed
+    logger.info("%s: seed %d", name, seed)
+    start = time.perf_counter()
+    result = train(config)
+    save_run(result, out_dir / f"seed_{seed}", time.perf_counter() - start)
+    return json.loads((out_dir / f"seed_{seed}" / "metrics.json").read_text())
+
+
+def _init_worker() -> None:
+    torch.set_num_threads(1)
+
+
+def _train_seed_in_worker(name: str, config: ExperimentConfig, out_dir: Path):
+    """``_train_seed`` in a worker process; also returns the seed's log text."""
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(message)s"))
+    package_logger = logging.getLogger("pinn_jc")
+    package_logger.setLevel(logging.INFO)
+    package_logger.addHandler(handler)
+    try:
+        metrics = _train_seed(name, config, out_dir)
+    finally:
+        package_logger.removeHandler(handler)
+    return metrics, stream.getvalue()
+
+
+def _train_seeds_in_parallel(name, configs, out_dir, workers, log_handler) -> dict:
+    """Train the seeds in ``workers`` processes; logs are written in seed order."""
+    summaries = {}
+    pool = ProcessPoolExecutor(
+        max_workers=min(workers, len(configs)),
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=_init_worker,
+    )
+    try:
+        futures = {
+            seed: pool.submit(_train_seed_in_worker, name, config, out_dir)
+            for seed, config in configs.items()
+        }
+        for seed, future in futures.items():
+            summaries[seed], log_text = future.result()
+            log_handler.stream.write(log_text)
+            log_handler.flush()
+    except BaseException:
+        pool.shutdown(cancel_futures=True)
+        raise
+    pool.shutdown()
+    return summaries
 
 
 def summarize(metrics_by_seed: dict[int, dict]) -> dict:

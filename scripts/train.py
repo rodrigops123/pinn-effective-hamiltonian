@@ -3,6 +3,7 @@
 Usage:
     uv run python scripts/train.py configs/atom_fock.yaml
     uv run python scripts/train.py configs/atom_fock.yaml --seeds 42 43 --epochs 100 --allow-dirty
+    uv run python scripts/train.py configs/atom_coherent.yaml --workers 5
 
 Results go to saved_artifacts/runs/<name>/<timestamp>_<commit>/ (see pinn_jc.experiments).
 """
@@ -27,6 +28,12 @@ def main() -> None:
         action="store_true",
         help="run despite uncommitted changes (the result will not map to a commit)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="seeds trained in parallel, one thread each (5-6 on an M3 Pro)",
+    )
     parser.add_argument("--no-progress", action="store_true", help="hide progress bars")
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args()
@@ -41,6 +48,7 @@ def main() -> None:
             args.output,
             allow_dirty=args.allow_dirty,
             progress_bar=not args.no_progress,
+            workers=args.workers,
         )
     except DirtyWorkingTreeError as error:
         sys.exit(f"error: {error}")
