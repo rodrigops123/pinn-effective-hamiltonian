@@ -1,3 +1,5 @@
+"""Training history and result containers."""
+
 from dataclasses import dataclass, field, fields
 
 import numpy as np
@@ -8,8 +10,11 @@ from pinn_jc.training.config import ExperimentConfig
 
 @dataclass
 class TrainingHistory:
-    """Per-epoch losses (unweighted terms; ``total_loss`` is the weighted sum) and the
-    learned couplings, plus validation metrics every ``log_every`` epochs."""
+    """Per-epoch losses and couplings, and validation metrics.
+
+    The loss terms are unweighted; ``total_loss`` is their weighted sum. Validation
+    metrics are recorded every ``log_every`` epochs when a window is held out.
+    """
 
     total_loss: list[float] = field(default_factory=list)
     loss_ic: list[float] = field(default_factory=list)
@@ -22,10 +27,11 @@ class TrainingHistory:
     validation_expect_mae: list[float] = field(default_factory=list)
 
     def to_arrays(self) -> dict[str, np.ndarray]:
+        """Return every field as a numpy array, e.g. for ``np.savez``."""
         return {f.name: np.asarray(getattr(self, f.name)) for f in fields(self)}
 
     def to_legacy_dict(self) -> dict[str, list]:
-        """The ``loss_dict`` returned by the pre-Phase-5 trainers."""
+        """Return the ``loss_dict`` format of the earlier trainers."""
         legacy = {
             "total_loss": self.total_loss,
             "loss_ic": self.loss_ic,
@@ -40,6 +46,8 @@ class TrainingHistory:
 
 @dataclass
 class TrainingResult:
+    """What ``train`` returns: config, trained modules and history."""
+
     config: ExperimentConfig
     state: ComplexStateNet
     couplings: Couplings | None

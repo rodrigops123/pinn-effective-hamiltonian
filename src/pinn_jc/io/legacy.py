@@ -23,7 +23,7 @@ from pinn_jc.models.couplings import Positivity
 
 
 class LegacyNeuralNet(nn.Module):
-    """The pre-Phase-4 network, kept verbatim so that legacy pickles can be loaded."""
+    """The earlier network class, kept verbatim so that legacy pickles can be loaded."""
 
     def __init__(
         self,
@@ -57,6 +57,7 @@ class LegacyNeuralNet(nn.Module):
             self.param = nn.Parameter(torch.rand(self.n_paramater), requires_grad=True)
 
     def forward(self, x):
+        """Map inputs (N, 1) to outputs (N, D)."""
         for layer, activation, dropout in zip(
             self.hidden_layers, self.activation, self.dropouts, strict=True
         ):
@@ -66,7 +67,7 @@ class LegacyNeuralNet(nn.Module):
 
 
 LEGACY_CLASSES = {
-    # thesis-era pickles
+    # pickles of the original module layout
     ("src.model.neural_network", "Neural_Net"): (
         "pinn_jc.io.legacy",
         "LegacyNeuralNet",
@@ -79,7 +80,10 @@ LEGACY_CLASSES = {
 
 
 class LegacyUnpickler(pickle.Unpickler):
+    """Unpickler that maps legacy class paths onto the current classes."""
+
     def find_class(self, module, name):
+        """Resolve ``module.name``, redirecting legacy paths."""
         module, name = LEGACY_CLASSES.get((module, name), (module, name))
         return super().find_class(module, name)
 

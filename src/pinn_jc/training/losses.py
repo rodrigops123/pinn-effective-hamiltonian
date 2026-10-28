@@ -1,15 +1,35 @@
+"""PINN loss terms.
+
+Conventions: a predicted trajectory ``nn_state`` has shape (N, D) and dtype complex,
+row n being ψ(t_n) in the |atom> ⊗ |n> basis; operators act as H ψ (column vectors).
+"""
+
 import torch
 
 
 def mae(y_pred, y_true):
+    """Mean absolute error (complex inputs: mean modulus of the difference)."""
     return torch.mean(abs(y_pred - y_true))
 
 
 def loss_ode(H_, nn_state, tempo, time_scale: float = 1.0):
     """Residual of the Schrödinger equation dψ/dτ = -i T H ψ, with τ = t / T.
 
-    nn_state: (N, D) complex, row n is ψ(τ_n); tempo: (N, 1) network input τ;
-    H_: (D, D) or (N, D, D); time_scale: T (1 when the network sees physical time).
+    Parameters
+    ----------
+    H_ : torch.Tensor
+        (D, D) or, for time-dependent pictures, (N, D, D) complex Hamiltonian.
+    nn_state : torch.Tensor
+        (N, D) complex network output, row n being ψ(τ_n).
+    tempo : torch.Tensor
+        (N, 1) network input τ, with ``requires_grad``.
+    time_scale : float
+        T; 1 when the network sees physical time.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar: per-component mean over time of |dψ/dτ + i T H ψ|, summed over D.
     """
     assert tempo.requires_grad, "tempo must have requires_grad=True"
 
@@ -48,11 +68,13 @@ def loss_ode(H_, nn_state, tempo, time_scale: float = 1.0):
 
 
 def loss_ic(nn_state, sim_state):
+    """MAE between the predicted and the exact state at the first time point."""
     loss = mae(nn_state[0], sim_state[0])
     return loss
 
 
 def loss_norm(nn_state):
+    """MAE of the squared norm ||ψ(t)||² from 1, over all time points."""
     squared_sum = (abs(nn_state) ** 2).sum(-1)
     loss = mae(squared_sum, 1)
     return loss
@@ -61,8 +83,21 @@ def loss_norm(nn_state):
 def loss_data(nn_state, operators, sim_expect, indices=None):
     """MAE between predicted and simulated expectation values.
 
-    operators: (n_observables, D, D); sim_expect: (N, n_observables);
-    indices: time indices to compare at (all of them when None).
+    Parameters
+    ----------
+    nn_state : torch.Tensor
+        (N, D) complex predicted states.
+    operators : torch.Tensor
+        (K, D, D) observables.
+    sim_expect : torch.Tensor
+        (N, K) exact expectation values.
+    indices : torch.Tensor, optional
+        Time indices to compare at; all of them when None.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar loss.
     """
     if indices is not None:
         nn_state = nn_state[indices]

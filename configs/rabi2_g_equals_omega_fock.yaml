@@ -1,7 +1,5 @@
-# Full Rabi model at g1 = g2 = ωc = ωa = 1 (g/ω = 1: the onset of deep strong coupling;
-# called "USC" in the thesis notebook), learned in the interaction picture.
-# Source: apps/train_usc_rabi.ipynb (seeds 42-46). Re-run after the Phase 3 fixes:
-# g1 ≈ g2 ≈ 0.993 and state fidelity ≈ 0.9999 for seed 42.
+# Full Rabi model at g1 = g2 = ωc = ωa = 1 (g/ω = 1, the onset of deep strong coupling),
+# learned in the interaction picture.
 experiment:
   name: rabi2_g_equals_omega_fock
   description: Learn g1 and g2 of the full Rabi model at g/ω = 1, interaction picture.

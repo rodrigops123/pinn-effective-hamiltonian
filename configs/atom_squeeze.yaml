@@ -1,4 +1,4 @@
-# As atom_fock, from |g> ⊗ S(r = 1)|0>, field truncated at 15. Source: apps/train_models.ipynb.
+# As atom_fock, from |g> ⊗ S(r = 1)|0>, field truncated at 15 photons.
 experiment:
   name: atom_squeeze
   description: Learn g1 and the state from a squeezed vacuum (r = 1), rotating frame, on resonance.

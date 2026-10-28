@@ -50,10 +50,12 @@ class PhysicsConfig:
 
     @property
     def hilbert_dim(self) -> int:
+        """Dimension D of the atom-cavity Hilbert space."""
         return self.dims["atom"] * self.dims["field"]
 
     @property
     def n_couplings(self) -> int:
+        """Number of learned couplings (0 when they are fixed)."""
         return len(get_picture(self.picture).couplings) if self.learn_couplings else 0
 
 
@@ -92,11 +94,14 @@ class DataConfig:
 
     @property
     def n_train(self) -> int:
+        """Number of leading time points used for training."""
         return self.n_time_steps - int(self.n_time_steps * self.validation_fraction)
 
 
 @dataclass(frozen=True)
 class ModelConfig:
+    """Architecture of the real- and imaginary-part networks."""
+
     hidden_units: tuple[int, ...] = (100, 100, 100)
     activation: str = "sine"
     dropout: float = 0.0
@@ -117,6 +122,8 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class LossWeights:
+    """Weights of the loss terms in the total loss."""
+
     ic: float = 1.0
     norm: float = 1.0
     data: float = 1.0
@@ -154,18 +161,22 @@ class TrainingConfig:
 
 @dataclass(frozen=True)
 class ExperimentConfig:
+    """Complete specification of one training run."""
+
     physics: PhysicsConfig
     data: DataConfig
     training: TrainingConfig
     model: ModelConfig = field(default_factory=ModelConfig)
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the config as plain, YAML-serializable dicts and lists."""
         config = asdict(self)
         config["model"]["hidden_units"] = list(self.model.hidden_units)
         return config
 
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "ExperimentConfig":
+        """Build and validate a config from plain dicts (inverse of ``to_dict``)."""
         unknown = set(config) - {"physics", "data", "training", "model"}
         if unknown:
             raise ValueError(f"unknown config sections {sorted(unknown)}")

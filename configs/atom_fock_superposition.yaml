@@ -1,4 +1,4 @@
-# As atom_fock, from |g> ⊗ (|0> + |1> + |2>)/√3. Source: apps/train_models.ipynb.
+# As atom_fock, from |g> ⊗ (|0> + |1> + |2>)/√3.
 experiment:
   name: atom_fock_superposition
   description: Learn g1 and the state from a Fock superposition, rotating frame, on resonance.

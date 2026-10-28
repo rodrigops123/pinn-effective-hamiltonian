@@ -1,7 +1,5 @@
 # Data from Jaynes-Cummings dynamics (true g2 = 0, ωc = ωa = 100 >> g1), learned with
 # the full Rabi model in its interaction picture: does the PINN find g2 ≈ 0?
-# Source: apps/train_rabi_model.ipynb (seeds 100 + i²). The thesis results of this
-# experiment were affected by bug A and their exact configs are not recorded.
 experiment:
   name: rabi2_jc_fock
   description: Learn g1 and the counter-rotating g2 (true 0) from JC data, interaction picture.

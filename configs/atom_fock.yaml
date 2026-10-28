@@ -1,6 +1,5 @@
-# Jaynes-Cummings on resonance, learned in the frame rotating at ωa: learn g1 from
-# |e,0>. Source: apps/train_models.ipynb (thesis). Hidden units follow the notebook's
-# default of the time (100); some thesis pickles used 50.
+# Jaynes-Cummings on resonance, learned in the frame rotating at ωa: learn g1 and the
+# state from |e,0>.
 experiment:
   name: atom_fock
   description: Learn the JC coupling g1 and the state from |e,0>, rotating frame, on resonance.

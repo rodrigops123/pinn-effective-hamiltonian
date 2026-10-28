@@ -52,6 +52,7 @@ OPERATORS: dict[str, Callable[[Mapping[str, int]], qutip.Qobj]] = {
 
 
 def operator(name: str, dims: Mapping[str, int]) -> qutip.Qobj:
+    """Build a named operator of ``OPERATORS`` for the given dimensions."""
     if name not in OPERATORS:
         raise ValueError(f"unknown operator {name!r}; choose from {sorted(OPERATORS)}")
     return OPERATORS[name](dims)

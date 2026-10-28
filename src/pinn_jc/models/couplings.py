@@ -1,3 +1,5 @@
+"""Learnable, non-negative coupling constants."""
+
 from typing import Literal
 
 import torch
@@ -24,6 +26,7 @@ class Couplings(nn.Module):
         self.raw = nn.Parameter(torch.rand(n_couplings))
 
     def forward(self) -> torch.Tensor:
+        """Return the non-negative couplings, shape (n_couplings,)."""
         if self.positivity == "softplus":
             return F.softplus(self.raw)
         return self.raw.abs()

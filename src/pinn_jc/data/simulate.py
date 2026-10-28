@@ -64,9 +64,29 @@ def simulate(
 ) -> SimulationData:
     """Simulate the atom-cavity system on ``n_time_steps`` points of [0, tfinal].
 
-    ``frame`` selects the frame of the returned states; by default it is the frame of
-    ``picture``, so the states satisfy dψ/dt = -i H ψ with that picture's Hamiltonian.
-    ``init_state_options`` are passed to the initial state (e.g. ``alpha``, ``r``).
+    Parameters
+    ----------
+    params : Mapping[str, float]
+        ``wc``, ``wa`` and the picture's couplings.
+    tfinal : float
+        Final time.
+    n_time_steps : int
+        Number of points of the uniform time grid, both ends included.
+    init_state : str
+        Name in ``physics.INITIAL_STATES``.
+    picture : str
+        Name in ``physics.PICTURES``.
+    dims : Mapping[str, int], optional
+        ``{"atom": ..., "field": ...}``; defaults to 2 x 2.
+    frame : Frame or str, optional
+        Frame of the returned states; by default the frame of ``picture``, so the
+        states satisfy dψ/dt = -i H ψ with that picture's Hamiltonian.
+    init_state_options : Mapping[str, float], optional
+        Passed to the initial state (e.g. ``alpha``, ``r``).
+
+    Returns
+    -------
+    SimulationData
     """
     if dims is None:
         dims = {"atom": 2, "field": 2}

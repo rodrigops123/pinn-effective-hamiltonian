@@ -25,6 +25,8 @@ OBSERVABLE_LABELS = (
 
 @dataclass(frozen=True)
 class Evaluation:
+    """A trained model and the exact solution on one time grid, in one frame."""
+
     time: np.ndarray  # (T,) physical time
     predicted_state: np.ndarray  # (T, D) complex
     exact_state: np.ndarray  # (T, D) complex, same frame
@@ -37,6 +39,7 @@ class Evaluation:
 
     @property
     def basis_labels(self) -> list[str]:
+        """Return LaTeX labels |s,n> of the basis states, in vector order."""
         atom_names = ("g", "e") if self.physics.dims["atom"] == 2 else None
         labels = []
         for level in range(self.physics.dims["atom"]):
@@ -48,11 +51,12 @@ class Evaluation:
 
     @property
     def observable_labels(self) -> tuple[str, ...]:
+        """Return LaTeX labels of the observables, in column order."""
         return OBSERVABLE_LABELS
 
     @property
     def time_unit(self) -> tuple[np.ndarray, str]:
-        """Dimensionless time g1 t (as in the thesis) when g1 is defined, else t."""
+        """Dimensionless time g1 t when g1 is defined, else t."""
         g1 = float(self.physics.params.get("g1", 0.0))
         if g1 > 0:
             return self.time * g1, r"$g_1 t$"
@@ -67,7 +71,27 @@ def evaluate(
     scale_time: bool = False,
     train_end: float | None = None,
 ) -> Evaluation:
-    """Evaluate ``models`` (current ``{"state", ...}`` or legacy dict) on a fresh grid."""
+    """Evaluate a trained model against the exact solution on a fresh grid.
+
+    Parameters
+    ----------
+    models : Mapping
+        ``{"state": ComplexStateNet, ...}`` or a legacy ``models_dict``.
+    physics : PhysicsConfig
+        The physics the model was trained on; fixes the frame of the comparison.
+    tfinal : float
+        Final time of the grid.
+    n_time_steps : int
+        Number of grid points.
+    scale_time : bool
+        Whether the network was trained on τ = t / tfinal.
+    train_end : float, optional
+        Last training time, when a validation window was held out.
+
+    Returns
+    -------
+    Evaluation
+    """
     data = simulate(
         params=physics.params,
         tfinal=tfinal,

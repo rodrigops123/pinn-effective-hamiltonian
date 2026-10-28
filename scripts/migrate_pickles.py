@@ -30,9 +30,10 @@ from pinn_jc.io.legacy import load_legacy_pickle, models_from_legacy_state_dicts
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# Experiment settings as written in the notebooks that most plausibly produced each file.
-# The notebooks were edited after these runs (e.g. some runs used 50 hidden units while
-# the notebooks' config says 100), so none of this is verified. Treat it as a lead only.
+# Experiment settings as written in the notebooks (now in the git history) that most
+# plausibly produced each file. The notebooks were edited after these runs (e.g. some
+# runs used 50 hidden units while the notebooks say 100), so none of this is verified.
+# Treat it as a lead only.
 NOTEBOOK_HINTS = {
     "results_dict_fock": "apps/train_models.ipynb: params wc=wa=1, g1=1; picture=atom; "
     "dims 2x2; tfinal=2pi; n_time_steps=200; 10 runs, seeds 42+i",

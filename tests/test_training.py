@@ -1,5 +1,4 @@
-"""Training loop: regression tests for bugs C-E of the Phase 0 audit and the
-config-driven features."""
+"""Training loop: regression tests and config-driven features."""
 
 import logging
 

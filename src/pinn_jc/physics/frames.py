@@ -12,8 +12,12 @@ import numpy as np
 
 
 class Frame(StrEnum):
-    # Generators: LAB none; ROTATING ωa (a†a + σ+σ-), i.e. rotating at ωa for both
-    # subsystems; INTERACTION H0 = ωc a†a + ωa σ+σ-.
+    """Frame of a state, named by its generator G: ψ_frame(t) = exp(+i G t) ψ_lab(t).
+
+    LAB: no rotation. ROTATING: G = ωa (a†a + σ+σ-), rotating at ωa for both
+    subsystems. INTERACTION: G = H0 = ωc a†a + ωa σ+σ-.
+    """
+
     LAB = "lab"
     ROTATING = "rotating"
     INTERACTION = "interaction"
@@ -44,7 +48,26 @@ def change_frame(
     params: Mapping[str, float],
     dims: Mapping[str, int],
 ) -> np.ndarray:
-    """Re-express states of shape (T, D) given in ``source`` in ``target``."""
+    """Re-express states given in the ``source`` frame in the ``target`` frame.
+
+    Parameters
+    ----------
+    states : np.ndarray
+        (T, D) complex amplitudes, row t being ψ(times[t]).
+    times : np.ndarray
+        (T,) physical times.
+    source, target : Frame
+        Frames of the input and of the output.
+    params : Mapping[str, float]
+        Must contain ``wc`` and ``wa`` unless ``source is target``.
+    dims : Mapping[str, int]
+        ``{"atom": ..., "field": ...}``.
+
+    Returns
+    -------
+    np.ndarray
+        (T, D) complex64 states in ``target``.
+    """
     if source is target:
         return states
     energies = frame_energies(target, params, dims) - frame_energies(

@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pinn-effective-hamiltonian"
 version = "0.1.0"
 description = "Physics-informed neural networks for the state evolution and effective Hamiltonian of the Jaynes-Cummings model"
+readme = "README.md"
 requires-python = ">=3.12"
 # Compatible ranges; exact versions (with hashes) are pinned in uv.lock.
 dependencies = [
@@ -45,12 +46,22 @@ filterwarnings = [
 [tool.ruff]
 target-version = "py312"
 src = ["src", "tests", "scripts"]
-# Notebooks are rewritten as thin wrappers in Phase 6; lint them from then on.
-extend-exclude = ["*.ipynb"]
+# The introductory example is kept verbatim.
+extend-exclude = ["examples/*.ipynb"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP"]
-ignore = ["E501"]  # line length is the formatter's job
+select = ["E", "W", "F", "I", "B", "UP", "D"]
+# E501: line length is the formatter's job; D105/D107: magic methods and __init__
+# are documented on their class.
+ignore = ["E501", "D105", "D107"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+"scripts/*" = ["D103"]
+"*.ipynb" = ["D"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pinn_jc"]

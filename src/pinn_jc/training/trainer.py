@@ -77,6 +77,19 @@ def _validation_metrics(state, network_time, states, expectations, observables):
 
 
 def train(config: ExperimentConfig) -> TrainingResult:
+    """Train a PINN as specified by ``config``.
+
+    Simulates the data in the frame of ``config.physics.picture``, builds the
+    networks (and couplings, if learned), and minimises the weighted sum of the
+    initial-condition, normalisation, data and ODE losses with Adam. When
+    ``config.data.validation_fraction`` > 0 the final stretch of the time grid is
+    held out and evaluated every ``log_every`` epochs.
+
+    Returns
+    -------
+    TrainingResult
+        The config, trained state network, couplings (None if fixed) and history.
+    """
     physics, data_config, training = config.physics, config.data, config.training
     if training.seed is not None:
         set_seed(training.seed)
