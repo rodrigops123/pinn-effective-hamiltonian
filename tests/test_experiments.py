@@ -102,6 +102,44 @@ def test_seeded_runs_are_reproducible(tmp_path):
         np.testing.assert_array_equal(ha["total_loss"], hb["total_loss"])
 
 
+def test_parallel_seeds_match_sequential_training(tmp_path):
+    """Workers train each seed on one thread; the results are bit-identical."""
+    sequential = run_experiment(
+        _tiny_experiment(), tmp_path / "a", allow_dirty=True, progress_bar=False
+    )
+    parallel = run_experiment(
+        _tiny_experiment(),
+        tmp_path / "b",
+        allow_dirty=True,
+        progress_bar=False,
+        workers=2,
+    )
+
+    for seed in (5, 6):
+        a, b = (
+            load_run(sequential / f"seed_{seed}"),
+            load_run(parallel / f"seed_{seed}"),
+        )
+        for key in ("total_loss", "couplings"):
+            np.testing.assert_array_equal(a.history[key], b.history[key])
+    log = (parallel / "train.log").read_text()
+    assert log.index("seed 5") < log.index("seed 6")
+    assert "epoch 3/3" in log
+    meta = json.loads((parallel / "meta.json").read_text())
+    assert (meta["workers"], meta["torch_threads"]) == (2, 1)
+
+
+def test_workers_must_be_positive(tmp_path):
+    with pytest.raises(ValueError, match="workers"):
+        run_experiment(
+            _tiny_experiment(),
+            tmp_path,
+            allow_dirty=True,
+            progress_bar=False,
+            workers=0,
+        )
+
+
 def test_dirty_working_tree_is_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(
         experiments, "git_info", lambda path: {"commit": "abc", "dirty": True}
