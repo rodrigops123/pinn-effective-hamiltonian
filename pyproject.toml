@@ -39,7 +39,7 @@ testpaths = ["tests"]
 filterwarnings = [
     "ignore::FutureWarning:qutip",
     # matplotlib 3.9 calls pyparsing APIs that newer pyparsing releases deprecate
-    "ignore::DeprecationWarning:matplotlib\\..*",
+    "ignore::pyparsing.warnings.PyparsingDeprecationWarning",
 ]
 
 [tool.ruff]
