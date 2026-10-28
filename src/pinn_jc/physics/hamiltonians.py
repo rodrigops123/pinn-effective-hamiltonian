@@ -146,6 +146,37 @@ def get_picture(name: str) -> Picture:
     return PICTURES[name]
 
 
+# Physical process of a coupling, named by the set of operators it multiplies.
+_PROCESSES = {
+    frozenset({"jc_emission", "jc_absorption"}): "Jaynes-Cummings",
+    frozenset({"cr_lowering", "cr_raising"}): "counter-rotating",
+    frozenset({"two_photon"}): "two-photon",
+    frozenset({"atom_drive"}): "classical drive",
+}
+_OPERATOR_SYMBOLS = {
+    "jc_emission": r"a^\dagger\sigma_-",
+    "jc_absorption": r"a\sigma_+",
+    "cr_lowering": r"a\sigma_-",
+    "cr_raising": r"a^\dagger\sigma_+",
+}
+
+
+def coupling_label(picture: str, coupling: str) -> str:
+    """Plot label of a learnable coupling, e.g. ``$g_1$ (Jaynes-Cummings)``."""
+    picture = get_picture(picture)
+    if coupling not in picture.couplings:
+        raise ValueError(f"picture {picture.name!r} has no coupling {coupling!r}")
+    operators = frozenset(
+        t.operator for t in picture.terms if t.coefficient == coupling
+    )
+    symbol = f"$g_{{{coupling[1:]}}}$"
+    if operators in _PROCESSES:
+        return f"{symbol} ({_PROCESSES[operators]})"
+    return (
+        f"{symbol} (${' + '.join(_OPERATOR_SYMBOLS[op] for op in sorted(operators))}$)"
+    )
+
+
 class Hamiltonian:
     """A picture's Hamiltonian for given dimensions, with operators built once."""
 

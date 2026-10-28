@@ -1,668 +1,311 @@
-import matplotlib.gridspec as gridspec
+"""Figures. Every function returns a matplotlib Figure and never shows or saves it.
+
+Inputs are precomputed: an ``Evaluation`` (``pinn_jc.evaluation``) for the state and
+expectation-value figures, a training history for the loss and coupling figures.
+Call ``use_style()`` once for the publication style, and ``save_figure`` to export.
+"""
+
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
-import scienceplots  # noqa: F401  (registers the "science" matplotlib styles)
-import torch
 from matplotlib.colors import Normalize, TwoSlopeNorm
+from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from pinn_jc.data.simulate import simulate
-from pinn_jc.io.legacy import as_models
+from pinn_jc.evaluation import Evaluation
+from pinn_jc.physics import coupling_label, get_picture
 
-plt.style.use(["science", "retro", "grid"])
+STYLE = ("science", "retro", "grid")
+LEGEND = {
+    "fontsize": 6,
+    "framealpha": 0.9,
+    "facecolor": "lightgray",
+    "edgecolor": "gray",
+}
+LOSS_LABELS = {
+    "total_loss": r"$L$",
+    "loss_ic": r"$L_\mathrm{ic}$",
+    "loss_norm": r"$L_\mathrm{norm}$",
+    "loss_data": r"$L_\mathrm{data}$",
+    "loss_ode": r"$L_\mathrm{eq}$",
+}
 
 
-def prep_plot_input(
-    params, tfinal, n_time_steps, init_state, picture, dims, plot_input
-):
+def use_style(usetex: bool = True) -> None:
+    """Apply the SciencePlots style used for the thesis figures (needs LaTeX if usetex)."""
+    import scienceplots  # noqa: F401  (registers the "science" styles)
 
-    data = simulate(
-        params=params,
-        tfinal=tfinal,
-        n_time_steps=n_time_steps,
-        init_state=init_state,
-        picture=picture,
-        dims=dims,
+    plt.style.use(list(STYLE))
+    plt.rcParams["text.usetex"] = usetex
+
+
+def save_figure(
+    fig: Figure,
+    path: Path | str,
+    formats: Sequence[str] = ("pdf", "png"),
+    dpi: int = 300,
+) -> list[Path]:
+    """Save ``fig`` as ``path`` with each extension in ``formats``; returns the paths."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    paths = [path.with_suffix(f".{fmt}") for fmt in formats]
+    for target in paths:
+        fig.savefig(target, dpi=dpi, bbox_inches="tight")
+    return paths
+
+
+def _history_arrays(history) -> dict[str, np.ndarray]:
+    """Accept a TrainingHistory, a loaded history dict, or a legacy loss_dict."""
+    if hasattr(history, "to_arrays"):
+        history = history.to_arrays()
+    arrays = {key: np.asarray(value) for key, value in history.items()}
+    if "learned_param" in arrays and "couplings" not in arrays:
+        arrays["couplings"] = arrays.pop("learned_param")
+    return arrays
+
+
+def _mark_validation(ax, evaluation: Evaluation) -> None:
+    if evaluation.train_end is not None:
+        scale = evaluation.time_unit[0][-1] / evaluation.time[-1]
+        ax.axvline(
+            evaluation.train_end * scale, color="k", linestyle=":", linewidth=0.8
+        )
+
+
+def plot_expectations(evaluation: Evaluation) -> Figure:
+    """Predicted (solid) and exact (dashed) ⟨a†a⟩, ⟨σ+σ-⟩, and their absolute error.
+
+    A dotted line marks the end of the training window, if one was held out.
+    """
+    time, time_label = evaluation.time_unit
+    fig, (ax, ax_error) = plt.subplots(
+        2, 1, sharex=True, gridspec_kw={"height_ratios": [3, 1]}, dpi=300
     )
-    sim_state, sim_expect, operators_list = (
-        data.states,
-        data.expectations,
-        data.observables,
-    )
-
-    time = torch.linspace(0, tfinal, n_time_steps)
-
-    time = time.reshape(-1, 1)
-
-    if plot_input == "expected":
-        return sim_expect, time, operators_list
-
-    else:
-        return (
-            sim_state,
+    colors = ("tab:blue", "tab:orange")
+    for k, label in enumerate(evaluation.observable_labels):
+        predicted = evaluation.predicted_expectations[:, k]
+        exact = evaluation.exact_expectations[:, k]
+        ax.plot(time, predicted, color=colors[k], label=rf"${label}_\mathrm{{NN}}$")
+        ax.plot(
             time,
-        )
-
-
-def set_plot_params_expected_values():
-
-    fig = plt.figure(dpi=300)
-    gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
-    ax0 = fig.add_subplot(gs[0])
-    ax0.grid(linestyle="--")
-    ax0.set_ylabel(r"Populations")
-
-    ax1 = fig.add_subplot(gs[1], sharex=ax0)
-    ax1.set_xlabel(r"\(gt\)")
-    ax1.set_ylabel("Error")
-    ax1.grid(linestyle="--", alpha=0.6)
-
-    return ax0, ax1
-
-
-def set_labels_and_colors_expected_values():
-    labels = [
-        [
-            r"\(\langle \hat{a}^\dagger \hat{a} \rangle_{NN}\)",
-            r"\(\langle \hat{a}^\dagger \hat{a} \rangle_{sim}\)",
-        ],
-        [
-            r"\(\langle \hat{\sigma}_+ \hat{\sigma}_- \rangle_{NN}\)",
-            r"\(\langle \hat{\sigma}_+ \hat{\sigma}_- \rangle_{sim}\)",
-        ],
-    ]
-
-    labels_error = [
-        r"error\((\hat{a}^\dagger \hat{a})\)",
-        r"error\((\hat{\sigma}_+ \hat{\sigma}_-)\)",
-    ]
-
-    colors = ["blue", "orange"]
-    colors_error = ["blue", "orange"]
-
-    return labels, labels_error, colors, colors_error
-
-
-def plot_expected_values(
-    models_dict,
-    tfinal,
-    n_time_steps,
-    init_state,
-    params,
-    picture,
-    dims,
-    is_scaled,
-    plot_input="expected",
-):
-    """
-    Plots the expected values of the model and optionally compares them with simulation data.
-
-    Args:
-        models_dict: trained models, ``{"state", "couplings"}`` or a legacy dict.
-        time: Time points for the x-axis.
-        operator: Operator used to compute expected values.
-    """
-
-    sim_expect, time, operators_list = prep_plot_input(
-        params, tfinal, n_time_steps, init_state, picture, dims, plot_input
-    )
-
-    if is_scaled:
-        time = time / time.max()
-
-    ax0, ax1 = set_plot_params_expected_values()
-    labels, labels_error, colors, colors_error = set_labels_and_colors_expected_values()
-
-    for i, operator in enumerate(operators_list):
-        nn_state_train = as_models(models_dict)["state"](time)
-
-        expected_values_train = torch.einsum(
-            "ni,ij,nj->n", nn_state_train.conj(), operator, nn_state_train
-        ).real
-
-        error = np.abs((expected_values_train - sim_expect[:, i]).detach().numpy())
-
-        ax0.plot(
-            time.numpy().squeeze(),
-            expected_values_train.detach().numpy(),
-            label=labels[i][0],
-            color=colors[i],
-        )
-
-        ax0.plot(
-            time.numpy().squeeze(),
-            sim_expect[:, i].detach().numpy(),
-            label=labels[i][1],
-            color=colors[i],
+            exact,
+            color=colors[k],
             linestyle="--",
+            label=rf"${label}_\mathrm{{exact}}$",
         )
-
-        ax0.legend(
-            fontsize=6,
-            loc="upper left",
-            bbox_to_anchor=(1.02, 1.0),  # push legend outside
-            borderaxespad=0.0,
-            framealpha=0.9,
-            facecolor="lightgray",
-            edgecolor="gray",
+        ax_error.plot(
+            time, np.abs(predicted - exact), color=colors[k], label=rf"${label}$"
         )
-
-        ax1.plot(
-            time.numpy().squeeze(),
-            error,
-            label=labels_error[i],
-            color=colors_error[i],
+    for axis in (ax, ax_error):
+        _mark_validation(axis, evaluation)
+        axis.legend(
+            loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0, **LEGEND
         )
-        ax1.legend(
-            fontsize=6,
-            loc="upper left",
-            bbox_to_anchor=(1.02, 1.0),  # push legend outside
-            borderaxespad=0.0,
-            framealpha=0.9,
-            facecolor="lightgray",
-            edgecolor="gray",
-        )
-
-    plt.show()
+    ax.set_ylabel("Populations")
+    ax_error.set_ylabel("Error")
+    ax_error.set_xlabel(time_label)
+    return fig
 
 
-def set_plot_params_states():
-    # Layout: 2 rows (Real / Imag) × 3 cols (NN prediction | Simulation | Error)
-    # Each panel: x-axis = basis components, y-axis = time
-    fig, axs = plt.subplots(
-        nrows=2, ncols=3, figsize=(30, 10), sharex=True, sharey=True, dpi=300
-    )
-
-    # Row 0: Real parts
-    axs[0, 0].set_title(r"\(|\tilde{\psi}_R (t)\rangle\)", fontsize=26)
-    axs[0, 1].set_title(r"\(|\psi_R(t)\rangle\)", fontsize=26)
-    axs[0, 2].set_title(
-        r"abs(\(|\psi_R(t)\rangle - |\tilde{\psi}_R(t)\rangle\))", fontsize=26
-    )
-
-    # Row 1: Imaginary parts
-    axs[1, 0].set_title(r"\(|\tilde{\psi}_I(t)\rangle\)", fontsize=26)
-    axs[1, 1].set_title(r"\(|\psi_I(t)\rangle\)", fontsize=26)
-    axs[1, 2].set_title(
-        r"abs(\(|\psi_I(t)\rangle - |\tilde{\psi}_I(t)\rangle\))", fontsize=26
-    )
-
-    return fig, axs
+def plot_fidelity(evaluation: Evaluation) -> Figure:
+    time, time_label = evaluation.time_unit
+    fig, ax = plt.subplots(dpi=300)
+    ax.plot(time, evaluation.fidelity)
+    _mark_validation(ax, evaluation)
+    ax.set_xlabel(time_label)
+    ax.set_ylabel(r"$\mathcal{F}(|\tilde\psi(t)\rangle, |\psi(t)\rangle)$")
+    return fig
 
 
-def plot_states(
-    models_dict,
-    params,
-    tfinal,
-    n_time_steps,
-    init_state,
-    picture,
-    dims,
-    is_scaled,
-    plot_input="state",
+def _strips(
+    columns: np.ndarray, major_breaks: Sequence[int], width=10, gap=3, major_gap=8
 ):
+    """Lay out the (T, D) components as vertical strips separated by NaN gaps.
 
-    sim_state, time = prep_plot_input(
-        params, tfinal, n_time_steps, init_state, picture, dims, plot_input
+    Returns the image (T, width * D + gaps), the x centre of each strip, and the x
+    positions of the major gaps (between atomic manifolds).
+    """
+    blocks, centres, breaks, x = [], [], [], 0
+    n_time, n_dim = columns.shape
+    for i in range(n_dim):
+        blocks.append(np.repeat(columns[:, i : i + 1], width, axis=1))
+        centres.append(x + width / 2)
+        x += width
+        if i < n_dim - 1:
+            this_gap = major_gap if i + 1 in major_breaks else gap
+            if i + 1 in major_breaks:
+                breaks.append(x + this_gap / 2)
+            blocks.append(np.full((n_time, this_gap), np.nan))
+            x += this_gap
+    return np.hstack(blocks), np.array(centres), breaks
+
+
+def plot_state_components(evaluation: Evaluation) -> Figure:
+    """Real and imaginary parts of every basis component over time.
+
+    Columns: network prediction, exact solution, absolute error; rows: real, imaginary.
+    The prediction and the exact solution share one colour scale, the errors another.
+    """
+    time, time_label = evaluation.time_unit
+    predicted, exact = evaluation.predicted_state, evaluation.exact_state
+    parts = {"R": (predicted.real, exact.real), "I": (predicted.imag, exact.imag)}
+    panels = {
+        (row, col): matrix
+        for row, (pred, ex) in enumerate(parts.values())
+        for col, matrix in enumerate((pred, ex, np.abs(ex - pred)))
+    }
+    amplitude = max(np.abs(panels[(r, c)]).max() for r in range(2) for c in range(2))
+    amplitude_norm = TwoSlopeNorm(vcenter=0.0, vmin=-amplitude, vmax=amplitude)
+    error_norm = Normalize(
+        vmin=0.0, vmax=max(panels[(0, 2)].max(), panels[(1, 2)].max())
     )
+    cmap = plt.get_cmap("magma").copy()
+    cmap.set_bad("white")
 
-    if is_scaled:
-        time = time / time.max()
-
-    # >>> Make figure taller (key for “strip readability”)
-    # If set_plot_params_states() already creates fig/axs, change its figsize there.
-    fig, axs = set_plot_params_states()  # ideally: figsize=(16, 9) or (16, 10)
-
-    # ============================================================
-    # STRIPS: thicker + clearer gaps
-    # ============================================================
-    STRIP_PX = 10
-    GAP_PX = 3
-    MAJOR_GAP_PX = 8
-
-    def infer_major_breaks(n_dim, dims):
-        if isinstance(dims, dict) and ("atom" in dims) and ("field" in dims):
-            if dims["atom"] == 2 and n_dim == dims["atom"] * dims["field"]:
-                return [dims["field"]]  # split between |g,n> and |e,n>
-        return []
-
-    def build_basis_labels(n_dim, dims):
-        if isinstance(dims, dict) and dims.get("atom", None) == 2 and "field" in dims:
-            N = dims["field"]
-            if n_dim == 2 * N:
-                return [rf"$|g,{n}\rangle$" for n in range(N)] + [
-                    rf"$|e,{n}\rangle$" for n in range(N)
-                ]
-        return [f"{i}" for i in range(n_dim)]
-
-    def to_separated_strips_with_centers(
-        mat_2d, strip_px, gap_px, major_breaks=None, major_gap_px=None
-    ):
-        """
-        Returns:
-          data (with NaN gaps),
-          centers: y-coordinate (data units) at the center of each component strip,
-          breaks_y: y-coordinates (data units) for group boundary markers (optional).
-        """
-        mat_2d = np.asarray(mat_2d)
-        n_dim, n_time = mat_2d.shape
-
-        if major_breaks is None:
-            major_breaks = []
-        if major_gap_px is None:
-            major_gap_px = gap_px
-
-        rows = []
-        centers = []
-        breaks_y = []
-
-        y = 0
-        for i in range(n_dim):
-            strip = np.repeat(mat_2d[i : i + 1, :], repeats=strip_px, axis=0)
-            rows.append(strip)
-
-            centers.append(y + strip_px / 2.0)
-            y += strip_px
-
-            if i != n_dim - 1:
-                next_idx = i + 1
-                this_gap = major_gap_px if next_idx in major_breaks else gap_px
-                if next_idx in major_breaks:
-                    breaks_y.append(y + this_gap / 2.0)  # middle of the major gap
-                rows.append(np.full((this_gap, n_time), np.nan, dtype=float))
-                y += this_gap
-
-        out = np.vstack(rows)
-        return out, np.array(centers), np.array(breaks_y), out.shape[0]
-
-    def imshow_strips(
-        ax,
-        mat_dim_time,
-        t0,
-        tf,
-        strip_px,
-        gap_px,
-        major_breaks,
-        major_gap_px,
-        cmap,
-        norm,
-    ):
-        data, centers, breaks_y, H = to_separated_strips_with_centers(
-            mat_dim_time,
-            strip_px=strip_px,
-            gap_px=gap_px,
-            major_breaks=major_breaks,
-            major_gap_px=major_gap_px,
-        )
-
-        im = ax.imshow(
-            data.T,  # transpose: basis components on x-axis, time on y-axis
+    major_breaks = (
+        [evaluation.physics.dims["field"]]
+        if evaluation.physics.dims["atom"] == 2
+        else []
+    )
+    fig, axes = plt.subplots(
+        2, 3, figsize=(15, 6), sharex=True, sharey=True, dpi=300, layout="constrained"
+    )
+    for (row, col), matrix in panels.items():
+        image, centres, breaks = _strips(matrix, major_breaks)
+        axes[row, col].imshow(
+            image,
             cmap=cmap,
-            norm=norm,
-            extent=[0, H, t0, tf],  # [xmin, xmax, ymin, ymax]
+            norm=error_norm if col == 2 else amplitude_norm,
+            extent=[0, image.shape[1], time[0], time[-1]],
             aspect="auto",
             interpolation="nearest",
             origin="lower",
         )
-        return im, centers, breaks_y, H
+        for x in breaks:
+            axes[row, col].axvline(x, color="k", linewidth=0.6, alpha=0.25)
 
-    # Colormaps: diverging for signed amplitudes, sequential for abs error
-    cmap_amp = plt.get_cmap("magma").copy()
-    cmap_err = plt.get_cmap("magma").copy()
-    cmap_amp.set_bad(color="white")
-    cmap_err.set_bad(color="white")
+    part_names = list(parts)
+    for row in range(2):
+        p = part_names[row]
+        axes[row, 0].set_title(rf"$|\tilde\psi_{p}(t)\rangle$ (network)")
+        axes[row, 1].set_title(rf"$|\psi_{p}(t)\rangle$ (exact)")
+        axes[row, 2].set_title(
+            rf"$\left||\psi_{p}\rangle - |\tilde\psi_{p}\rangle\right|$"
+        )
+        axes[row, 0].set_ylabel(time_label)
 
-    state = as_models(models_dict)["state"]
-    nn_state_real = state.real(time)
-    nn_state_imag = state.imag(time)
+    labels = evaluation.basis_labels
+    step = 1 if len(labels) <= 12 else max(1, len(labels) // 8)
+    for ax in axes[1]:
+        ax.set_xticks(centres[::step], labels[::step], rotation=90)
+        ax.set_xticks(centres, minor=True)
+        ax.set_xlabel(r"Basis component $|s,n\rangle$")
 
-    n_dim = nn_state_real.shape[1]
-    t0, tf = time[0].item(), time[-1].item()
-
-    major_breaks = infer_major_breaks(n_dim, dims)
-    basis_labels = build_basis_labels(n_dim, dims)
-
-    # ---------- Shared color scaling (so “top 2 rows” really share one colorbar)
-    nnR = nn_state_real.detach().cpu().numpy()
-    nnI = nn_state_imag.detach().cpu().numpy()
-    simR = sim_state.real.detach().cpu().numpy()
-    simI = sim_state.imag.detach().cpu().numpy()
-
-    amp_max = np.max(np.abs(np.concatenate([nnR, nnI, simR, simI], axis=None)))
-    amp_norm = TwoSlopeNorm(vcenter=0.0, vmin=-amp_max, vmax=amp_max)
-
-    errI = np.abs(simI - nnI)
-    errR = np.abs(simR - nnR)
-    err_max = np.max(np.concatenate([errR, errI], axis=None))
-    err_norm = Normalize(vmin=0.0, vmax=err_max)
-
-    # ---------- Plot all panels
-    # Row 0: Real parts — col 0: NN, col 1: Sim, col 2: Error
-    im00, centers, breaks_y, H = imshow_strips(
-        axs[0, 0],
-        nnR.T,
-        t0,
-        tf,
-        STRIP_PX,
-        GAP_PX,
-        major_breaks,
-        MAJOR_GAP_PX,
-        cmap=cmap_amp,
-        norm=amp_norm,
+    fig.colorbar(
+        plt.cm.ScalarMappable(norm=amplitude_norm, cmap=cmap),
+        ax=axes[:, :2].ravel().tolist(),
+        shrink=0.9,
+        label="Component value",
     )
-    im01, _, _, _ = imshow_strips(
-        axs[0, 1],
-        simR.T,
-        t0,
-        tf,
-        STRIP_PX,
-        GAP_PX,
-        major_breaks,
-        MAJOR_GAP_PX,
-        cmap=cmap_amp,
-        norm=amp_norm,
+    fig.colorbar(
+        plt.cm.ScalarMappable(norm=error_norm, cmap=cmap),
+        ax=axes[:, 2].tolist(),
+        shrink=0.9,
+        label="Absolute error",
     )
-    im02, _, _, _ = imshow_strips(
-        axs[0, 2],
-        errR.T,
-        t0,
-        tf,
-        STRIP_PX,
-        GAP_PX,
-        major_breaks,
-        MAJOR_GAP_PX,
-        cmap=cmap_err,
-        norm=err_norm,
-    )
-
-    # Row 1: Imaginary parts — col 0: NN, col 1: Sim, col 2: Error
-    im10, _, _, _ = imshow_strips(
-        axs[1, 0],
-        nnI.T,
-        t0,
-        tf,
-        STRIP_PX,
-        GAP_PX,
-        major_breaks,
-        MAJOR_GAP_PX,
-        cmap=cmap_amp,
-        norm=amp_norm,
-    )
-    im11, _, _, _ = imshow_strips(
-        axs[1, 1],
-        simI.T,
-        t0,
-        tf,
-        STRIP_PX,
-        GAP_PX,
-        major_breaks,
-        MAJOR_GAP_PX,
-        cmap=cmap_amp,
-        norm=amp_norm,
-    )
-    im12, _, _, _ = imshow_strips(
-        axs[1, 2],
-        errI.T,
-        t0,
-        tf,
-        STRIP_PX,
-        GAP_PX,
-        major_breaks,
-        MAJOR_GAP_PX,
-        cmap=cmap_err,
-        norm=err_norm,
-    )
-
-    # ---------- Y ticks: centers of strips
-    # If many components, label sparsely but keep minor ticks for every strip
-    if n_dim <= 12:
-        major_idx = list(range(n_dim))
-    else:
-        step = max(1, n_dim // 8)
-        major_idx = list(range(0, n_dim, step))
-
-    major_ticks = [centers[i] for i in major_idx]
-    major_labels = [basis_labels[i] for i in major_idx]
-
-    # ---------- X ticks: basis component labels (bottom row only, due to sharex)
-    axs[1, 0].set_xticks(major_ticks)
-    axs[1, 0].set_xticklabels(major_labels, fontsize=20, rotation=90)
-    axs[1, 0].set_xticks(centers, minor=True)
-    axs[1, 0].tick_params(axis="x", which="minor", length=2)
-
-    axs[1, 1].set_xticks(major_ticks)
-    axs[1, 1].set_xticklabels(major_labels, fontsize=20, rotation=90)
-    axs[1, 1].set_xticks(centers, minor=True)
-    axs[1, 1].tick_params(axis="x", which="minor", length=2)
-
-    axs[1, 2].set_xticks(major_ticks)
-    axs[1, 2].set_xticklabels(major_labels, fontsize=20, rotation=90)
-    axs[1, 2].set_xticks(centers, minor=True)
-    axs[1, 2].tick_params(axis="x", which="minor", length=2)
-
-    # Mark group boundaries (vertical lines) in all panels
-    for xb in breaks_y:
-        for r in range(2):
-            for c in range(3):
-                axs[r, c].axvline(xb, color="k", lw=0.6, alpha=0.25)
-
-    # ---------- Y ticks: time (left column only, due to sharey)
-    for ax in axs.flat:
-        ax.set_yticks(np.linspace(t0, tf, num=5))
-    axs[0, 0].set_yticklabels(np.round(np.linspace(t0, tf, num=5), 2), fontsize=20)
-
-    # ---------- Axis labels
-    for c in range(3):
-        axs[1, c].set_xlabel(r"Basis component $|s,n\rangle$", fontsize=24)
-    for r in range(2):
-        axs[r, 0].set_ylabel(r"\(gt\)", fontsize=22)
-
-    # ---------- Shared colorbars (2 total)
-    amp_sm = plt.cm.ScalarMappable(norm=amp_norm, cmap=cmap_amp)
-    err_sm = plt.cm.ScalarMappable(norm=err_norm, cmap=cmap_err)
-
-    # Amplitude colorbar: spans NN and Sim columns (cols 0 and 1)
-    cbar_amp = fig.colorbar(
-        amp_sm,
-        ax=[axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]],
-        orientation="vertical",
-        fraction=0.025,
-        pad=0.02,
-    )
-    cbar_amp.set_label("Component value (signed)", fontsize=24)
-    cbar_amp.ax.tick_params(labelsize=20)
-
-    # Error colorbar: spans Error column (col 2)
-    cbar_err = fig.colorbar(
-        err_sm,
-        ax=[axs[0, 2], axs[1, 2]],
-        orientation="vertical",
-        fraction=0.025,
-        pad=0.02,
-    )
-    cbar_err.set_label("Absolute error", fontsize=24)
-    cbar_err.ax.tick_params(labelsize=20)
-
-    # If you use constrained_layout in set_plot_params_states(), prefer fig.tight_layout OFF.
-    # plt.tight_layout()
-    plt.show()
+    return fig
 
 
-def plot_loss_functions(loss_dict: dict, skip_param: int):
+def plot_losses(history, every: int = 1) -> Figure:
+    """Loss terms per epoch (log scale), plotting one epoch in ``every``."""
+    arrays = _history_arrays(history)
+    fig, ax = plt.subplots(dpi=300)
+    for key, label in LOSS_LABELS.items():
+        if key in arrays and arrays[key].size:
+            epochs = np.arange(1, arrays[key].size + 1)
+            ax.plot(epochs[::every], arrays[key][::every], label=label)
+    ax.set_yscale("log")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Loss")
+    ax.legend(loc="upper right", **LEGEND)
+    return fig
+
+
+def plot_couplings(
+    history,
+    picture: str,
+    true_values: Mapping[str, float] | None = None,
+    every: int = 1,
+    inset_last: int | None = 1000,
+) -> Figure:
+    """Learned couplings per epoch, with their true values (dashed, same colour).
+
+    ``true_values`` maps coupling names to values (e.g. the config's ``params``);
+    the inset zooms on the last ``inset_last`` epochs, without subsampling.
     """
-    Plots the loss functions during training.
-
-    Args:
-        loss_dict: Dictionary containing the loss functions.
-    """
-
-    labels = [
-        r"\(L\)",
-        r"\(L_{\mathrm{ic}}\)",
-        r"\(L_{\mathrm{norm}}\)",
-        r"\(L_{\mathrm{data}}\)",
-        r"\(L_{\mathrm{eq}}\)",
+    couplings = _history_arrays(history)["couplings"]
+    names = get_picture(picture).couplings
+    if couplings.ndim != 2 or couplings.shape[1] != len(names):
+        raise ValueError(
+            f"history has couplings of shape {couplings.shape}; picture {picture!r} "
+            f"has {len(names)}: {names}"
+        )
+    epochs = np.arange(1, len(couplings) + 1)
+    fig, ax = plt.subplots(dpi=300)
+    lines = [
+        ax.plot(
+            epochs[::every], couplings[::every, k], label=coupling_label(picture, name)
+        )[0]
+        for k, name in enumerate(names)
     ]
 
-    epochs = len(loss_dict["total_loss"])
-    skip_epochs = int(epochs // skip_param)
+    def true_lines(axis):
+        for line, name in zip(lines, names, strict=True):
+            if true_values is not None and name in true_values:
+                axis.axhline(
+                    true_values[name],
+                    color=line.get_color(),
+                    linestyle="--",
+                    linewidth=1,
+                )
 
-    plt.figure(dpi=300)
-    i = 0
-    for key, value in loss_dict.items():
-        if "loss" in key:
-            plt.plot(value[0:-1:skip_epochs], label=labels[i])
-            i += 1
-    plt.yscale("log")
-    plt.xlabel(r"Epochs (\(\times\)100)")
-    plt.ylabel("Loss")
-    plt.grid(alpha=0.4)
-    plt.legend(
-        loc="upper right",
-        framealpha=0.9,
-        facecolor="lightgray",
-        edgecolor="gray",
-        fontsize=6,
-    )
-    plt.tight_layout()
-    plt.show()
+    true_lines(ax)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Coupling")
+    ax.legend(loc="lower right", **LEGEND)
 
-
-def plot_learned_param(
-    loss_dict: dict, skip_param: int, true_param: float, picture: str
-):
-    """
-    Plots the learned parameters during training.
-
-    Args:
-        loss_dict: Dictionary containing the loss functions.
-    """
-
-    epochs = len(loss_dict["total_loss"])
-    skip_epochs = int(epochs // skip_param)
-
-    learned_params = np.array(loss_dict["learned_param"])  # (raw_epochs, n_params)
-
-    # -----------------------------
-    # Main (downsampled) plot data
-    # -----------------------------
-    y_ds = learned_params[0:-1:skip_epochs, :]
-    x_ds = np.arange(len(y_ds))
-    true_param_line_g1 = [true_param] * len(x_ds)
-
-    plt.figure(dpi=300)
-    ax = plt.gca()
-
-    if picture == "atom":
-        labels = [r"Learned Parameter"]
-    elif picture == "rabi":
-        labels = [r"\(g_1\)", r"\(g_2\)", r"\(g_3\)", r"\(g_4\)"]
-    elif picture == "rabi2":
-        labels = [r"\(g_1\) (Jaynes-Cummings)", r"\(g_2\) (Counter-Rotating)"]
-    elif picture == "geral":
-        labels = [
-            r"\(g_1\) (Jaynes-Cummings)",
-            r"\(g_2\) (Rabi)",
-            r"\(g_3\) (Two-Photon)",
-            r"\(g_0\) (Classical Field)",
-        ]
-
-    for param in range(y_ds.shape[1]):
-        ax.plot(x_ds, y_ds[:, param], label=labels[param])
-
-    true_line_g1 = ax.plot(
-        x_ds, true_param_line_g1, label=r"True Parameter", linestyle="--"
-    )
-    # true_line_g2 = ax.plot(x_ds, true_param_line_g2, label="True Counter-Rotating Parameter", linestyle="--")
-
-    ax.set_xlabel(r"Epochs (\(\times\)100)")
-    ax.set_ylabel("Parameter Value")
-    ax.legend(
-        fontsize=6,
-        facecolor="lightgray",
-        edgecolor="gray",
-        framealpha=0.9,
-        # bbox_to_anchor=(1.02, 1.0),
-        bbox_to_anchor=(0.5, 0.25),  # vertical center
-    )
-    ax.grid(alpha=0.4)
-
-    # ==================================================
-    # INSET: last 100 *RAW* epochs (no downsampling)
-    # ==================================================
-    N_LAST = 1000
-    raw_epochs = learned_params.shape[0]
-
-    if raw_epochs >= 5:
-        n_last = min(N_LAST, raw_epochs)
-
-        x_raw = np.arange(raw_epochs - n_last, raw_epochs)
-        # x_raw = np.round(x_raw / 100)  # convert to "epochs x100" scale
-        # x_raw = x_raw.astype(int)
-        # x_raw = np.arange(n_last)  # local inset scale
-        y_raw = learned_params[-n_last:, :]  # RAW values
-
-        axins = inset_axes(
+    if inset_last and len(couplings) > inset_last:
+        inset = inset_axes(
             ax,
             width="40%",
-            height="50%",
-            # loc="upper right",
-            bbox_to_anchor=(0.01, 0.05, 0.9, 0.9),
+            height="40%",
+            bbox_to_anchor=(0.05, 0.05, 0.9, 0.9),
             bbox_transform=ax.transAxes,
-            borderpad=1.1,
+            loc="center right",
         )
-
-        for param in range(y_raw.shape[1]):
-            axins.plot(x_raw, y_raw[:, param])
-
-        axins.axhline(true_param, linestyle="--", linewidth=1)
-        axins.axhline(
-            true_param, linestyle="--", linewidth=1, color=true_line_g1[0].get_color()
-        )
-
-        axins.set_xlim(x_raw[0], x_raw[-1])
-        axins.set_xlabel(r"Epochs", fontsize=6)
-        axins.set_ylabel(r"Parameter Value", fontsize=6)
-        axins.set_xticks(
-            [x_raw[0], x_raw[0] + (raw_epochs - x_raw[0]) // 2, raw_epochs]
-        )
-
-        axins.grid(alpha=0.3)
-        axins.tick_params(labelsize=6)
-
-    plt.show()
+        for k, line in enumerate(lines):
+            inset.plot(
+                epochs[-inset_last:], couplings[-inset_last:, k], color=line.get_color()
+            )
+        true_lines(inset)
+        inset.tick_params(labelsize=6)
+        inset.set_title(f"last {inset_last} epochs", fontsize=6)
+    return fig
 
 
-def plot_fidelity(
-    models_dict,
-    params,
-    tfinal,
-    n_time_steps,
-    init_state,
-    picture,
-    dims,
-    is_scaled,
-    plot_input="state",
-):
-
-    sim_state, time = prep_plot_input(
-        params, tfinal, n_time_steps, init_state, picture, dims, plot_input
+def plot_positivity_transforms(span: float = 10.0) -> Figure:
+    """softplus(θ) and |θ| with their derivatives: the two ways couplings are kept ≥ 0."""
+    theta = np.linspace(-span, span, 1001)
+    fig, (ax_softplus, ax_abs) = plt.subplots(
+        1, 2, figsize=(7, 2.6), sharey=True, dpi=300
     )
-
-    if is_scaled:
-        time = time / time.max()
-
-    nn_state = as_models(models_dict)["state"](time)
-
-    nn_state_conj = nn_state.conj()
-
-    inner_product = torch.sum(nn_state_conj * sim_state, dim=1)
-
-    fidelity = torch.abs(inner_product) ** 2
-
-    plt.figure(dpi=300)
-    plt.plot(time.detach().numpy(), fidelity.detach().numpy(), label="Fidelity")
-    plt.xlabel(r"\(gt\)")
-    plt.ylabel(r"\(\mathcal{F}(|\tilde{\psi}(t)\rangle, |\psi(t)\rangle)\)")
-    plt.grid(alpha=0.4)
-    plt.show()
+    ax_softplus.plot(theta, np.log1p(np.exp(theta)), label=r"softplus$(\theta)$")
+    ax_softplus.plot(theta, 1 / (1 + np.exp(-theta)), label=r"softplus$'(\theta)$")
+    ax_abs.plot(theta, np.abs(theta), label=r"$|\theta|$")
+    ax_abs.plot(theta, np.sign(theta), label=r"$|\theta|'$")
+    for ax in (ax_softplus, ax_abs):
+        ax.set_xlabel(r"$\theta$")
+        ax.legend(**LEGEND)
+    return fig

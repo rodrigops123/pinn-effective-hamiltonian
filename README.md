@@ -5,10 +5,11 @@ This is a code base used to train a neural network based on the Physics Informed
 
 # Code structure
 ```
-|___apps/                     # notebooks: figures
+|___apps/figures.ipynb       # interactive figures (saved runs and thesis pickles)
 |___configs/                  # one YAML file per experiment
 |___scripts/
 |   |___train.py              # train an experiment config, once per seed
+|   |___make_figures.py       # render the figures of saved runs
 |   |___migrate_pickles.py    # convert legacy result pickles to state_dict format
 |___src/pinn_jc/
 |   |___settings.py           # device
@@ -17,7 +18,8 @@ This is a code base used to train a neural network based on the Physics Informed
 |   |___data/simulate.py      # QuTiP simulation of the training data
 |   |___models/               # MLP, complex state network, learnable couplings
 |   |___training/             # experiment config, losses, training loop, history
-|   |___visualization/        # plotting
+|   |___evaluation.py         # predictions vs exact solution, in the training frame
+|   |___visualization/        # figures
 |   |___experiments.py        # experiment files and the multi-seed runner
 |   |___io/runs.py            # save / load run directories
 |   |___io/legacy.py          # load and convert results from earlier code versions
@@ -61,6 +63,14 @@ final metrics. Load a run with `pinn_jc.io.runs.load_run`. The runner refuses to
 with uncommitted changes (override with `--allow-dirty`), so every result maps to a
 commit. `--epochs` and `--seeds` override the config for quick checks.
 
-The configs reproduce the experiments of the thesis notebooks, which were removed in
-favour of them and remain in the git history.
+Render the figures of an experiment (every seed) or of one seed:
+```
+uv run python scripts/make_figures.py saved_artifacts/runs/atom_fock/<timestamp>_<commit>
+```
+They are written to `seed_<s>/figures/` as PDF and PNG; predictions are always compared
+with the exact solution in the frame the model was trained in. `apps/figures.ipynb` does
+the same interactively, and also accepts thesis-era result pickles.
+
+The configs and `apps/figures.ipynb` replace the thesis notebooks, which remain in the
+git history.
 

@@ -3,7 +3,7 @@ import pytest
 import qutip
 import torch
 
-from pinn_jc.physics import PICTURES, Hamiltonian, get_picture
+from pinn_jc.physics import PICTURES, Hamiltonian, coupling_label, get_picture
 
 DIMS = {"atom": 2, "field": 3}
 PARAMS = {"wc": 1.3, "wa": 1.0, "g0": 0.2, "g1": 0.7, "g2": 0.4, "g3": 0.1, "g4": 0.05}
@@ -96,3 +96,15 @@ def test_time_dependent_picture_needs_time_and_has_no_qobj():
         hamiltonian.to_torch(PARAMS)
     with pytest.raises(NotImplementedError):
         hamiltonian.to_qobj(PARAMS)
+
+
+def test_coupling_labels_name_the_physical_process():
+    assert coupling_label("rabi2_ip", "g1") == "$g_{1}$ (Jaynes-Cummings)"
+    assert coupling_label("rabi2_ip", "g2") == "$g_{2}$ (counter-rotating)"
+    assert coupling_label("geral", "g0") == "$g_{0}$ (classical drive)"
+    assert coupling_label("rabi", "g4") == r"$g_{4}$ ($a^\dagger\sigma_+$)"
+
+
+def test_coupling_label_rejects_unknown_couplings():
+    with pytest.raises(ValueError, match="has no coupling 'g2'"):
+        coupling_label("atom", "g2")

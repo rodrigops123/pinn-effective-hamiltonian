@@ -31,7 +31,7 @@ Experiments are YAML files in `configs/` (one per experiment; `experiment:` sect
 uv run python scripts/train.py configs/atom_fock.yaml                     # all seeds, full epochs
 uv run python scripts/train.py configs/atom_fock.yaml --epochs 5 --seeds 1 --allow-dirty   # quick check
 ```
-The runner refuses uncommitted changes to tracked files unless `--allow-dirty`, so stored results map to a commit. Output: `saved_artifacts/runs/<name>/<UTC timestamp>_<commit>/` with `experiment.yaml`, `meta.json` (git commit + dirty flag, package versions, command), `train.log`, `summary.json` (per-seed final metrics, coupling mean/std) and `seed_<s>/` (`config.yaml`, `model.pt`, `history.npz`, `metrics.json`). Reload a run with `pinn_jc.io.runs.load_run(dir)`. Figures: `apps/generate_plots*.ipynb` (legacy pickles; rewritten in Phase 7). Never add training notebooks: add a config.
+The runner refuses uncommitted changes to tracked files unless `--allow-dirty`, so stored results map to a commit. Output: `saved_artifacts/runs/<name>/<UTC timestamp>_<commit>/` with `experiment.yaml`, `meta.json` (git commit + dirty flag, package versions, command), `train.log`, `summary.json` (per-seed final metrics, coupling mean/std) and `seed_<s>/` (`config.yaml`, `model.pt`, `history.npz`, `metrics.json`). Reload a run with `pinn_jc.io.runs.load_run(dir)`. Figures: `uv run python scripts/make_figures.py <experiment dir or seed dir>` writes PDF/PNG into `<seed dir>/figures/`; `apps/figures.ipynb` is the interactive equivalent (also covers thesis-era pickles). Never add training notebooks: add a config.
 
 ## Architecture
 
@@ -43,9 +43,11 @@ src/pinn_jc/data/simulate.py
   → SimulationData (states, expectations, observables, H, time + which picture/frame)
       ↓
 src/pinn_jc/training/trainer.py  train(ExperimentConfig) -> TrainingResult
-  → trained neural networks
+  → trained neural networks (saved/loaded by experiments.py + io/runs.py)
       ↓
-src/pinn_jc/visualization/plots.py
+src/pinn_jc/evaluation.py  evaluate / evaluate_run -> Evaluation (prediction vs exact, same frame)
+      ↓
+src/pinn_jc/visualization/plots.py  Evaluation / history -> matplotlib Figure
 ```
 
 ### Key Modules
@@ -67,6 +69,10 @@ src/pinn_jc/visualization/plots.py
 **`src/pinn_jc/settings.py`** — Only `DEVICE="cpu"`; every other default lives in the config dataclasses.
 
 **`src/pinn_jc/experiments.py` / `src/pinn_jc/io/runs.py`** — `Experiment` (YAML ↔ dataclass, `with_overrides`), `run_experiment` (one run per seed, logs always written at INFO), `save_run` / `load_run` (checkpoint format 1: `{"format", "state", "couplings"}`; `load_run` rebuilds the modules exactly without consuming the caller's RNG).
+
+**`src/pinn_jc/evaluation.py`** — `evaluate(models, physics, tfinal, n_time_steps, scale_time)` and `evaluate_run(run)` compute predicted vs exact states, expectation values and fidelity |⟨ψ|ψ_nn⟩|²/‖ψ_nn‖² once, always in the frame of `physics.picture` (the training frame). Plots never simulate.
+
+**`src/pinn_jc/visualization/plots.py`** — Pure figure functions returning `Figure` (no `plt.show`): `plot_expectations`, `plot_fidelity`, `plot_state_components`, `plot_losses`, `plot_couplings` (labels from `physics.coupling_label`, true values dashed), `plot_positivity_transforms`; `use_style()` applies SciencePlots (LaTeX) explicitly, `save_figure` exports. History arguments accept `TrainingHistory`, loaded arrays or legacy `loss_dict`s.
 
 **`src/pinn_jc/io/legacy.py`** — Everything pre-Phase-4: `LegacyNeuralNet` (old class, only for unpickling), `load_legacy_pickle` (remaps old class paths), `models_from_legacy_state_dicts` (migrated `{"model_real","model_imag"}` weights → current modules) and `as_models` (accepts new `{"state","couplings"}` or legacy `models_dict`; used by the plots).
 
