@@ -34,7 +34,7 @@ def state_and_time_derivative(state, time):
     return torch.func.jvp(state, (time,), (torch.ones_like(time),))
 
 
-def loss_ode(H_, nn_state, dpsi_dt, time_scale: float = 1.0):
+def loss_ode(H_, nn_state, dpsi_dt, time_scale: float = 1.0, reduction: str = "sum"):
     """Residual of the Schrödinger equation dψ/dτ = -i T H ψ, with τ = t / T.
 
     Parameters
@@ -47,11 +47,14 @@ def loss_ode(H_, nn_state, dpsi_dt, time_scale: float = 1.0):
         (N, D) complex dψ/dτ, from ``state_and_time_derivative``.
     time_scale : float
         T; 1 when the network sees physical time.
+    reduction : str
+        How the D per-component residuals combine: "sum" or "mean".
 
     Returns
     -------
     torch.Tensor
-        Scalar: per-component mean over time of |dψ/dτ + i T H ψ|, summed over D.
+        Scalar: per-component mean over time of |dψ/dτ + i T H ψ|, summed (or
+        averaged) over D.
     """
     if H_.dim() == 2:
         h_psi = torch.einsum("ij,nj->ni", H_, nn_state)
@@ -61,7 +64,12 @@ def loss_ode(H_, nn_state, dpsi_dt, time_scale: float = 1.0):
         raise ValueError("H_ must have shape (D,D) or (N,D,D)")
 
     residual = dpsi_dt + 1j * float(time_scale) * h_psi
-    return residual.abs().mean(dim=0).sum()
+    per_component = residual.abs().mean(dim=0)
+    if reduction == "mean":
+        return per_component.mean()
+    if reduction == "sum":
+        return per_component.sum()
+    raise ValueError(f"reduction must be 'sum' or 'mean', got {reduction!r}")
 
 
 def loss_ic(nn_state, sim_state):

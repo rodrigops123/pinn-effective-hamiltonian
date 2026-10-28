@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +16,7 @@ from pinn_jc.experiments import (
 )
 from pinn_jc.io.runs import load_run
 
-CONFIGS = sorted((Path(__file__).parents[1] / "configs").glob("*.yaml"))
+CONFIGS = sorted((Path(__file__).parents[1] / "configs").rglob("*.yaml"))
 
 
 @pytest.mark.parametrize("path", CONFIGS, ids=[p.stem for p in CONFIGS])
@@ -164,3 +165,17 @@ def test_invalid_experiments_are_rejected(meta, message):
 
     with pytest.raises(ValueError, match=message):
         Experiment.from_dict(data)
+
+
+def test_hard_initial_condition_survives_save_and_load(tmp_path):
+    experiment = _tiny_experiment()
+    model = replace(experiment.config.model, hard_initial_condition=True)
+    experiment = replace(experiment, config=replace(experiment.config, model=model))
+    out = run_experiment(experiment, tmp_path, allow_dirty=True, progress_bar=False)
+
+    run = load_run(out / "seed_5")
+
+    with torch.no_grad():
+        psi0 = run.state(torch.zeros(1, 1))[0]
+    torch.testing.assert_close(psi0, run.state.psi0)
+    assert run.state.psi0.abs().sum() > 0

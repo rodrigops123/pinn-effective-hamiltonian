@@ -1,0 +1,36 @@
+# Study of why atom_coherent fails to recover g1 (configs/atom_coherent.yaml).
+# Variant 'scaled_time': Network sees tau = t / tfinal in [0, 1]. Every variant uses the same seeds.
+experiment:
+  name: study_coherent_scaled_time
+  description: atom_coherent study. Network sees tau = t / tfinal in [0, 1].
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: coherent
+  init_state_options:
+    alpha: 1.0
+  dims:
+    atom: 2
+    field: 10
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 500
+  n_data_points: 500
+  scale_time: true
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 50000
+  learning_rate: 0.01

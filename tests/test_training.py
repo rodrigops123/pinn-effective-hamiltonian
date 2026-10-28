@@ -20,6 +20,7 @@ def _config(**overrides):
         },
         "data": {"tfinal": 2 * np.pi, "n_time_steps": 30, "n_data_points": 30},
         "training": {"epochs": 6, "log_every": 2, "progress_bar": False},
+        "model": {},
     }
     for section, values in overrides.items():
         sections[section] = {**sections[section], **values}
@@ -167,3 +168,60 @@ def test_history_exports_arrays_for_saving():
 
     assert arrays["total_loss"].shape == (6,)
     assert arrays["couplings"].shape == (6, 1)
+
+
+def test_hard_initial_condition_holds_exactly_without_loss_ic():
+    result = train(
+        _config(model={"hard_initial_condition": True}, training={"seed": 0})
+    )
+
+    with torch.no_grad():
+        psi = result.state(torch.zeros(1, 1))[0]
+    expected = torch.zeros(4, dtype=torch.complex64)
+    expected[2] = 1  # fock: |e, 0>, the third basis state of the 2 x 2 space
+    torch.testing.assert_close(psi, expected)
+    assert max(result.history.loss_ic) < 1e-6
+
+
+@pytest.mark.parametrize("schedule", ["cosine", "exponential"])
+def test_learning_rate_schedules_end_at_the_final_rate(schedule, monkeypatch):
+    rates = []
+    original_step = torch.optim.Adam.step
+
+    def recording_step(self, *args, **kwargs):
+        rates.append(self.param_groups[0]["lr"])
+        return original_step(self, *args, **kwargs)
+
+    monkeypatch.setattr(torch.optim.Adam, "step", recording_step)
+    train(
+        _config(
+            training={
+                "epochs": 50,
+                "lr_schedule": schedule,
+                "learning_rate": 1e-2,
+                "final_learning_rate": 1e-4,
+            }
+        )
+    )
+
+    assert rates[0] == pytest.approx(1e-2)
+    assert rates[-1] == pytest.approx(1e-4, rel=0.2)
+    assert all(a >= b for a, b in zip(rates, rates[1:], strict=False))
+
+
+def test_time_window_grows_to_the_whole_grid(monkeypatch):
+    import pinn_jc.training.trainer as trainer
+
+    sizes = []
+    original = trainer.state_and_time_derivative
+
+    def recording(state, time):
+        sizes.append(len(time))
+        return original(state, time)
+
+    monkeypatch.setattr(trainer, "state_and_time_derivative", recording)
+    train(_config(training={"epochs": 12, "window_start": 0.2, "window_epochs": 10}))
+
+    assert sizes[0] == 6  # 20% of 30 points
+    assert sizes == sorted(sizes)
+    assert sizes[-2:] == [30, 30]  # full grid from epoch window_epochs on

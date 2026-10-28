@@ -1,0 +1,38 @@
+# Study of why atom_squeeze fails to recover g1 (configs/atom_squeeze.yaml), round 3:
+# the best round-2 recipe trained longer. Variant '150k': Excitation truncation, ODE loss averaged over components, learning rate 1e-3, 150k epochs.
+experiment:
+  name: study3_squeeze_150k
+  description: atom_squeeze study, round 3. Excitation truncation, ODE loss averaged
+    over components, learning rate 1e-3, 150k epochs.
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: squeeze
+  init_state_options:
+    r: 1.0
+  dims:
+    atom: 2
+    field: 15
+  truncation: excitation
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 400
+  n_data_points: 400
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 150000
+  learning_rate: 0.001
+  ode_reduction: mean

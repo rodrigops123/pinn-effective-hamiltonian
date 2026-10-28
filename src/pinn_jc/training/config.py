@@ -8,8 +8,11 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from pinn_jc.physics import INITIAL_STATES, get_picture
+from pinn_jc.physics.basis import TRUNCATIONS, basis_indices
 
 ACTIVATIONS = ("sine", "tanh")
+LR_SCHEDULES = ("constant", "cosine", "exponential")
+ODE_REDUCTIONS = ("sum", "mean")
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,7 @@ class PhysicsConfig:
     ``params`` holds the true parameters used to simulate the data: ``wc``, ``wa`` and
     the picture's couplings. With ``learn_couplings`` the couplings are learned (their
     true values are only used for the data); otherwise they are fixed to ``params``.
+    ``truncation`` selects the basis the PINN works in (``physics.basis``).
     """
 
     picture: str
@@ -28,6 +32,7 @@ class PhysicsConfig:
     init_state_options: dict[str, float] = field(default_factory=dict)
     learn_couplings: bool = True
     positivity: str = "softplus"
+    truncation: str = "field"
 
     def __post_init__(self):
         picture = get_picture(self.picture)
@@ -47,11 +52,15 @@ class PhysicsConfig:
             raise ValueError(
                 f"positivity must be 'softplus' or 'abs', got {self.positivity!r}"
             )
+        if self.truncation not in TRUNCATIONS:
+            raise ValueError(
+                f"truncation must be one of {TRUNCATIONS}, got {self.truncation!r}"
+            )
 
     @property
     def hilbert_dim(self) -> int:
-        """Dimension D of the atom-cavity Hilbert space."""
-        return self.dims["atom"] * self.dims["field"]
+        """Dimension D of the (truncated) atom-cavity Hilbert space."""
+        return len(basis_indices(self.dims, self.truncation))
 
     @property
     def n_couplings(self) -> int:
@@ -100,11 +109,16 @@ class DataConfig:
 
 @dataclass(frozen=True)
 class ModelConfig:
-    """Architecture of the real- and imaginary-part networks."""
+    """Architecture of the real- and imaginary-part networks.
+
+    With ``hard_initial_condition`` the state is ψ(t) = ψ0 + (t - t0) net(t), which
+    satisfies the initial condition exactly instead of through ``loss_ic``.
+    """
 
     hidden_units: tuple[int, ...] = (100, 100, 100)
     activation: str = "sine"
     dropout: float = 0.0
+    hard_initial_condition: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "hidden_units", tuple(self.hidden_units))
@@ -136,7 +150,16 @@ class LossWeights:
 
 @dataclass(frozen=True)
 class TrainingConfig:
-    """Optimisation settings. ``seed`` (if set) seeds torch, numpy and random first."""
+    """Optimisation settings. ``seed`` (if set) seeds torch, numpy and random first.
+
+    ``lr_schedule`` decays the learning rate from ``learning_rate`` to
+    ``final_learning_rate`` over the epochs ("cosine" or "exponential"; "constant"
+    keeps it fixed). With ``window_epochs`` > 0 the losses see a growing time window:
+    the first ``window_start`` fraction of the training grid at epoch 0, widening
+    linearly to the whole grid at epoch ``window_epochs``. ``ode_reduction`` combines
+    the per-component ODE residuals: "sum" over the D components, or "mean", which
+    keeps the weight of the ODE loss relative to the others independent of D.
+    """
 
     epochs: int
     learning_rate: float = 0.01
@@ -145,6 +168,11 @@ class TrainingConfig:
     seed: int | None = None
     log_every: int = 1000
     progress_bar: bool = True
+    lr_schedule: str = "constant"
+    final_learning_rate: float = 1e-4
+    window_start: float = 1.0
+    window_epochs: int = 0
+    ode_reduction: str = "sum"
 
     def __post_init__(self):
         if isinstance(self.loss_weights, dict):
@@ -157,6 +185,25 @@ class TrainingConfig:
             )
         if self.log_every < 1:
             raise ValueError(f"log_every must be >= 1, got {self.log_every}")
+        if self.lr_schedule not in LR_SCHEDULES:
+            raise ValueError(
+                f"lr_schedule must be one of {LR_SCHEDULES}, got {self.lr_schedule!r}"
+            )
+        if self.final_learning_rate <= 0:
+            raise ValueError(
+                f"final_learning_rate must be positive, got {self.final_learning_rate}"
+            )
+        if not 0 < self.window_start <= 1:
+            raise ValueError(f"window_start must be in (0, 1], got {self.window_start}")
+        if self.ode_reduction not in ODE_REDUCTIONS:
+            raise ValueError(
+                f"ode_reduction must be one of {ODE_REDUCTIONS}, "
+                f"got {self.ode_reduction!r}"
+            )
+        if self.window_epochs < 0:
+            raise ValueError(
+                f"window_epochs must be non-negative, got {self.window_epochs}"
+            )
 
 
 @dataclass(frozen=True)

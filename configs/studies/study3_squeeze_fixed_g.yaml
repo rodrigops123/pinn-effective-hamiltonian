@@ -1,0 +1,41 @@
+# Study of why atom_squeeze fails to recover g1 (configs/atom_squeeze.yaml), round 3:
+# can the network learn the squeezed state when g1 is given?
+# Diagnostic: g1 fixed at its true value under the round-2 recipe (excitation truncation, ODE loss averaged over components, learning rate 1e-3), 30k epochs.
+experiment:
+  name: study3_squeeze_fixed_g
+  description: 'atom_squeeze study, round 3. Diagnostic: g1 fixed at its true value
+    under the round-2 recipe (excitation truncation, ODE loss averaged over components,
+    learning rate 1e-3), 30k epochs.'
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: squeeze
+  init_state_options:
+    r: 1.0
+  dims:
+    atom: 2
+    field: 15
+  truncation: excitation
+  learn_couplings: false
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 400
+  n_data_points: 400
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 30000
+  learning_rate: 0.001
+  ode_reduction: mean
