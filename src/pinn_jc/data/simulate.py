@@ -7,6 +7,7 @@ import numpy as np
 import qutip
 import torch
 
+from pinn_jc.physics.basis import basis_indices, check_closed
 from pinn_jc.physics.frames import Frame, change_frame
 from pinn_jc.physics.hamiltonians import Hamiltonian, get_picture
 from pinn_jc.physics.operators import observables
@@ -61,6 +62,7 @@ def simulate(
     dims: Mapping[str, int] | None = None,
     frame: Frame | str | None = None,
     init_state_options: Mapping[str, float] | None = None,
+    truncation: str = "field",
 ) -> SimulationData:
     """Simulate the atom-cavity system on ``n_time_steps`` points of [0, tfinal].
 
@@ -83,6 +85,10 @@ def simulate(
         states satisfy dψ/dt = -i H ψ with that picture's Hamiltonian.
     init_state_options : Mapping[str, float], optional
         Passed to the initial state (e.g. ``alpha``, ``r``).
+    truncation : str
+        Basis of the returned states and observables (``physics.basis``). The
+        system is always integrated in the full product basis; with
+        ``"excitation"`` the dropped states must stay unpopulated.
 
     Returns
     -------
@@ -115,15 +121,27 @@ def simulate(
     )
     source = get_picture(simulated_picture).frame
     states = change_frame(states, times, source, target, params, dims)
+    observable_matrices = np.array([op.full() for op in measured], dtype=np.complex64)
+
+    kept = basis_indices(dims, truncation)
+    if len(kept) < states.shape[1]:
+        dropped_population = 1 - (np.abs(states[:, kept]) ** 2).sum(axis=1)
+        if dropped_population.max() > 1e-6:
+            raise ValueError(
+                f"the {truncation!r} truncation drops populated states "
+                f"(population up to {dropped_population.max():.2e})"
+            )
+        for matrix in observable_matrices:
+            check_closed(matrix, kept, "an observable")
+        states = states[:, kept]
+        observable_matrices = observable_matrices[:, kept][:, :, kept]
 
     return SimulationData(
         states=torch.tensor(states, device=DEVICE),
         expectations=torch.tensor(np.array(result.expect), device=DEVICE).transpose(
             0, 1
         ),
-        observables=torch.tensor(
-            np.array([op.full() for op in measured], dtype=np.complex64), device=DEVICE
-        ),
+        observables=torch.tensor(observable_matrices, device=DEVICE),
         time=torch.tensor(
             times, dtype=torch.float32, requires_grad=True, device=DEVICE
         ).reshape(-1, 1),

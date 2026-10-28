@@ -1,0 +1,38 @@
+# Study of why atom_squeeze fails to recover g1 (configs/atom_squeeze.yaml), round 2.
+# Variant 'trunc_odemean_lr1e-3': Excitation truncation, ODE loss averaged over components, learning rate 1e-3. Every variant uses the same seeds.
+experiment:
+  name: study2_squeeze_trunc_odemean_lr1e-3
+  description: atom_squeeze study, round 2. Excitation truncation, ODE loss averaged
+    over components, learning rate 1e-3.
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: squeeze
+  init_state_options:
+    r: 1.0
+  dims:
+    atom: 2
+    field: 15
+  truncation: excitation
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 400
+  n_data_points: 400
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 30000
+  learning_rate: 0.001
+  ode_reduction: mean

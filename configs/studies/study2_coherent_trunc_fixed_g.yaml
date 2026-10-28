@@ -1,0 +1,38 @@
+# Study of why atom_coherent fails to recover g1 (configs/atom_coherent.yaml), round 2.
+# Variant 'trunc_fixed_g': Diagnostic: excitation truncation with g1 fixed at its true value. Every variant uses the same seeds.
+experiment:
+  name: study2_coherent_trunc_fixed_g
+  description: 'atom_coherent study, round 2. Diagnostic: excitation truncation with
+    g1 fixed at its true value.'
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: coherent
+  init_state_options:
+    alpha: 1.0
+  dims:
+    atom: 2
+    field: 10
+  truncation: excitation
+  learn_couplings: false
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 50000
+  learning_rate: 0.01

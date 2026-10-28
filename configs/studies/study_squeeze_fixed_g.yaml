@@ -1,0 +1,37 @@
+# Study of why atom_squeeze fails to recover g1 (configs/atom_squeeze.yaml).
+# Variant 'fixed_g': Diagnostic: g1 fixed at its true value; only the state is learned. Every variant uses the same seeds.
+experiment:
+  name: study_squeeze_fixed_g
+  description: 'atom_squeeze study. Diagnostic: g1 fixed at its true value; only the
+    state is learned.'
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: squeeze
+  init_state_options:
+    r: 1.0
+  dims:
+    atom: 2
+    field: 15
+  learn_couplings: false
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 400
+  n_data_points: 400
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 30000
+  learning_rate: 0.01
