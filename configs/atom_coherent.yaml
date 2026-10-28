@@ -1,4 +1,6 @@
-# As atom_fock, from |g> ⊗ |α = 1>, field truncated at 10 photons.
+# As atom_fock, from |g> ⊗ |α = 1>, field truncated at 10 photons. Excitation-number
+# truncation, the ODE loss averaged over components and learning rate 1e-3: without
+# them training converges to spurious stationary solutions (docs/studies/coherent_squeeze.md).
 experiment:
   name: atom_coherent
   description: Learn g1 and the state from a coherent field (α = 1), rotating frame, on resonance.
@@ -9,6 +11,7 @@ physics:
   init_state: coherent
   init_state_options: {alpha: 1.0}
   dims: {atom: 2, field: 10}
+  truncation: excitation
 data:
   tfinal: 6.283185307179586  # 2π
   n_time_steps: 500
@@ -18,4 +21,5 @@ model:
   activation: sine
 training:
   epochs: 50000
-  learning_rate: 0.01
+  learning_rate: 0.001
+  ode_reduction: mean
