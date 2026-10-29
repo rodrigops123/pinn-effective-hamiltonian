@@ -1,0 +1,26 @@
+# Positivity benchmark: does abs make g2 converge faster than softplus?
+# The g2-bias study's input-10t setting at ω = 5 (Rabi data), with g2 started
+# at exactly 1 for both maps (abs would otherwise draw it anywhere in [0, 1]).
+experiment:
+  name: positivity_softplus_rabi
+  description: Rabi data (true g2 = 1) at ω = 5, input 10t, softplus positivity, g2 starts at 1.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 5.0, wa: 5.0, g1: 1.0, g2: 1.0}
+  init_state: fock
+  dims: {atom: 2, field: 6}
+  positivity: softplus
+  coupling_init: {g2: 1.0}
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 50000
+  learning_rate: 0.001
+  ode_reduction: mean
