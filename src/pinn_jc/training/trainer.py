@@ -55,11 +55,12 @@ def build_models(
     model=None,
     coupling_init=None,
     fixed_couplings=None,
+    coupling_draw="positivity",
 ):
     """Networks for ψ(t) and, if ``n_couplings`` > 0, the learnable couplings.
 
-    ``coupling_init`` and ``fixed_couplings`` are passed to ``Couplings`` as its
-    ``initial`` and ``fixed`` (``PhysicsConfig.coupling_overrides``).
+    ``coupling_init``, ``fixed_couplings`` and ``coupling_draw`` are passed to
+    ``Couplings`` as its ``initial``, ``fixed`` and ``draw``.
 
     The construction order (real network, couplings, imaginary network) fixes how the
     random initialisation is drawn; keep it so that a seed reproduces earlier runs.
@@ -84,7 +85,11 @@ def build_models(
     couplings = None
     if n_couplings:
         couplings = Couplings(
-            n_couplings, positivity, initial=coupling_init, fixed=fixed_couplings
+            n_couplings,
+            positivity,
+            initial=coupling_init,
+            fixed=fixed_couplings,
+            draw=coupling_draw,
         )
     imag = network()
 
@@ -136,6 +141,7 @@ def train(config: ExperimentConfig) -> TrainingResult:
         physics.positivity,
         config.model,
         *physics.coupling_overrides(),
+        physics.coupling_draw,
     )
     parameters = list(state.parameters())
     if couplings is not None:
