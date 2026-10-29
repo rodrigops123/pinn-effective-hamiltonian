@@ -225,3 +225,21 @@ def test_time_window_grows_to_the_whole_grid(monkeypatch):
     assert sizes[0] == 6  # 20% of 30 points
     assert sizes == sorted(sizes)
     assert sizes[-2:] == [30, 30]  # full grid from epoch window_epochs on
+
+
+def test_fixed_and_initialised_couplings_in_training():
+    config = _config(
+        physics={
+            "picture": "rabi2_ip",
+            "params": {"wc": 5.0, "wa": 5.0, "g1": 1.0, "g2": 1.0},
+            "dims": {"atom": 2, "field": 3},
+            "fixed_couplings": {"g2": 0.25},
+            "coupling_init": {"g1": 0.5},
+        }
+    )
+
+    couplings = np.array(train(config).history.couplings)
+
+    np.testing.assert_allclose(couplings[:, 1], 0.25)
+    assert couplings[0, 0] == pytest.approx(0.5, abs=0.02)  # after one Adam step
+    assert couplings[-1, 0] != couplings[0, 0]

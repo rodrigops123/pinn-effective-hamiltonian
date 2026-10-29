@@ -1,0 +1,26 @@
+# g2-bias study, step 2: the ω = 5 recipe control
+# (configs/reproduction/control_jc_data_w5_recipe.yaml)
+# with the network input scaled to 10t, on five seeds,
+# trained for 150k epochs: does g2 keep falling towards 0?
+experiment:
+  name: g2bias_scale10_jc_150k
+  description: JC data (true g2 = 0) at ω = 5, network input 10t, 150k epochs.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 5.0, wa: 5.0, g1: 1.0, g2: 0.0}
+  init_state: fock
+  dims: {atom: 2, field: 6}
+  positivity: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 150000
+  learning_rate: 0.001
+  ode_reduction: mean

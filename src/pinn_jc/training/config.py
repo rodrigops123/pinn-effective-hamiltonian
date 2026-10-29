@@ -23,6 +23,9 @@ class PhysicsConfig:
     the picture's couplings. With ``learn_couplings`` the couplings are learned (their
     true values are only used for the data); otherwise they are fixed to ``params``.
     ``truncation`` selects the basis the PINN works in (``physics.basis``).
+    ``fixed_couplings`` keeps the named couplings at the given values while the others
+    are learned; ``coupling_init`` starts the named learned couplings at the given
+    values instead of a random draw.
     """
 
     picture: str
@@ -33,6 +36,8 @@ class PhysicsConfig:
     learn_couplings: bool = True
     positivity: str = "softplus"
     truncation: str = "field"
+    fixed_couplings: dict[str, float] = field(default_factory=dict)
+    coupling_init: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
         picture = get_picture(self.picture)
@@ -56,6 +61,24 @@ class PhysicsConfig:
             raise ValueError(
                 f"truncation must be one of {TRUNCATIONS}, got {self.truncation!r}"
             )
+        for name, values in (
+            ("fixed_couplings", self.fixed_couplings),
+            ("coupling_init", self.coupling_init),
+        ):
+            unknown = set(values) - set(picture.couplings)
+            if unknown:
+                raise ValueError(
+                    f"{name} names {sorted(unknown)}, not couplings of "
+                    f"{self.picture!r} {list(picture.couplings)}"
+                )
+            if values and not self.learn_couplings:
+                raise ValueError(f"{name} needs learn_couplings")
+            if any(value < 0 for value in values.values()):
+                raise ValueError(f"{name} must be non-negative, got {values}")
+        if set(self.fixed_couplings) & set(self.coupling_init):
+            raise ValueError("a coupling cannot be both fixed and initialised")
+        if self.positivity == "softplus" and 0 in self.coupling_init.values():
+            raise ValueError("softplus couplings cannot start at 0")
 
     @property
     def hilbert_dim(self) -> int:
@@ -66,6 +89,14 @@ class PhysicsConfig:
     def n_couplings(self) -> int:
         """Number of learned couplings (0 when they are fixed)."""
         return len(get_picture(self.picture).couplings) if self.learn_couplings else 0
+
+    def coupling_overrides(self) -> tuple[list, list]:
+        """Return the initial and fixed value of each learned coupling (None: not set)."""
+        names = get_picture(self.picture).couplings if self.learn_couplings else ()
+        return (
+            [self.coupling_init.get(name) for name in names],
+            [self.fixed_couplings.get(name) for name in names],
+        )
 
 
 @dataclass(frozen=True)
@@ -112,13 +143,15 @@ class ModelConfig:
     """Architecture of the real- and imaginary-part networks.
 
     With ``hard_initial_condition`` the state is ψ(t) = ψ0 + (t - t0) net(t), which
-    satisfies the initial condition exactly instead of through ``loss_ic``.
+    satisfies the initial condition exactly instead of through ``loss_ic``. Both
+    networks see ``input_scale`` × time (``MLP``).
     """
 
     hidden_units: tuple[int, ...] = (100, 100, 100)
     activation: str = "sine"
     dropout: float = 0.0
     hard_initial_condition: bool = False
+    input_scale: float = 1.0
 
     def __post_init__(self):
         object.__setattr__(self, "hidden_units", tuple(self.hidden_units))
@@ -132,6 +165,8 @@ class ModelConfig:
             )
         if not 0 <= self.dropout < 1:
             raise ValueError(f"dropout must be in [0, 1), got {self.dropout}")
+        if self.input_scale <= 0:
+            raise ValueError(f"input_scale must be positive, got {self.input_scale}")
 
 
 @dataclass(frozen=True)

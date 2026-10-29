@@ -58,9 +58,50 @@ def test_couplings_are_non_negative(positivity):
     torch.testing.assert_close(values, expected)
 
 
+@pytest.mark.parametrize("positivity", ["softplus", "abs"])
+def test_couplings_start_at_the_given_initial_values(positivity):
+    couplings = Couplings(3, positivity, initial=[None, 0.05, 2.0])
+
+    values = couplings()
+
+    torch.testing.assert_close(values[1:], torch.tensor([0.05, 2.0]))
+
+
+def test_fixed_couplings_stay_fixed_and_get_no_gradient():
+    couplings = Couplings(2, fixed=[None, 0.3])
+
+    couplings().sum().backward()
+
+    assert couplings()[1].item() == pytest.approx(0.3)
+    assert couplings.raw.grad[1] == 0
+    assert couplings.raw.grad[0] != 0
+    assert set(couplings.state_dict()) == {"raw"}
+
+
+def test_coupling_options_do_not_change_the_random_stream():
+    torch.manual_seed(0)
+    Couplings(2)
+    expected_next = torch.rand(1)
+    torch.manual_seed(0)
+
+    Couplings(2, initial=[0.1, None], fixed=[None, 1.0])
+
+    assert torch.equal(torch.rand(1), expected_next)
+
+
 def test_couplings_reject_unknown_positivity():
     with pytest.raises(ValueError, match="positivity must be"):
         Couplings(2, "relu")
+
+
+def test_input_scale_multiplies_the_input_and_adds_no_parameters():
+    torch.manual_seed(0)
+    plain = build_models(4, model=ModelConfig(hidden_units=(16,)))[0]
+    torch.manual_seed(0)
+    scaled = build_models(4, model=ModelConfig(hidden_units=(16,), input_scale=3.0))[0]
+
+    torch.testing.assert_close(scaled(TIME), plain(3.0 * TIME))
+    assert scaled.state_dict().keys() == plain.state_dict().keys()
 
 
 def test_build_models_reproduces_the_legacy_initialisation():
