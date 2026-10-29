@@ -179,3 +179,16 @@ def test_hard_initial_condition_survives_save_and_load(tmp_path):
         psi0 = run.state(torch.zeros(1, 1))[0]
     torch.testing.assert_close(psi0, run.state.psi0)
     assert run.state.psi0.abs().sum() > 0
+
+
+def test_fixed_couplings_survive_save_and_load(tmp_path):
+    experiment = load_experiment(
+        next(p for p in CONFIGS if p.stem == "rabi2_g_equals_omega_fock")
+    ).with_overrides(epochs=2, seeds=[5])
+    physics = replace(experiment.config.physics, fixed_couplings={"g2": 0.25})
+    experiment = replace(experiment, config=replace(experiment.config, physics=physics))
+    out = run_experiment(experiment, tmp_path, allow_dirty=True, progress_bar=False)
+
+    run = load_run(out / "seed_5")
+
+    assert run.couplings()[1].item() == pytest.approx(0.25)

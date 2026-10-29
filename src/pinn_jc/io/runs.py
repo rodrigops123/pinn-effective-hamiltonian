@@ -132,6 +132,7 @@ def load_run(run_dir: Path | str) -> LoadedRun:
             config.physics.n_couplings,
             config.physics.positivity,
             config.model,
+            *config.physics.coupling_overrides(),
         )
     state.load_state_dict(checkpoint["state"])
     if couplings is not None:

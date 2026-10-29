@@ -48,8 +48,18 @@ def data_indices(n_samples, n_points, seed=42):
     return torch.randperm(n_samples, generator=generator)[:n_points]
 
 
-def build_models(output_dim, n_couplings=0, positivity="softplus", model=None):
+def build_models(
+    output_dim,
+    n_couplings=0,
+    positivity="softplus",
+    model=None,
+    coupling_init=None,
+    fixed_couplings=None,
+):
     """Networks for ψ(t) and, if ``n_couplings`` > 0, the learnable couplings.
+
+    ``coupling_init`` and ``fixed_couplings`` are passed to ``Couplings`` as its
+    ``initial`` and ``fixed`` (``PhysicsConfig.coupling_overrides``).
 
     The construction order (real network, couplings, imaginary network) fixes how the
     random initialisation is drawn; keep it so that a seed reproduces earlier runs.
@@ -70,7 +80,11 @@ def build_models(output_dim, n_couplings=0, positivity="softplus", model=None):
         )
 
     real = network()
-    couplings = Couplings(n_couplings, positivity) if n_couplings else None
+    couplings = None
+    if n_couplings:
+        couplings = Couplings(
+            n_couplings, positivity, initial=coupling_init, fixed=fixed_couplings
+        )
     imag = network()
 
     state = ComplexStateNet(real, imag)
@@ -116,7 +130,11 @@ def train(config: ExperimentConfig) -> TrainingResult:
         set_seed(training.seed)
 
     state, couplings = build_models(
-        physics.hilbert_dim, physics.n_couplings, physics.positivity, config.model
+        physics.hilbert_dim,
+        physics.n_couplings,
+        physics.positivity,
+        config.model,
+        *physics.coupling_overrides(),
     )
     parameters = list(state.parameters())
     if couplings is not None:

@@ -40,6 +40,21 @@ def test_derived_quantities():
     assert config.data.n_train == 300
 
 
+RABI = {
+    "picture": "rabi2_ip",
+    "params": {"wc": 1, "wa": 1, "g1": 1, "g2": 1},
+    "init_state": "fock",
+}
+
+
+def test_coupling_overrides_follow_the_picture_order():
+    physics = PhysicsConfig(
+        **RABI, fixed_couplings={"g2": 0.5}, coupling_init={"g1": 2.0}
+    )
+
+    assert physics.coupling_overrides() == ([2.0, None], [None, 0.5])
+
+
 def test_fixed_couplings_have_no_learnable_parameters():
     physics = PhysicsConfig(
         "atom", {"wc": 1, "wa": 1, "g1": 1}, "fock", learn_couplings=False
@@ -82,6 +97,24 @@ def test_fixed_couplings_have_no_learnable_parameters():
                 "atom", {"wc": 1, "wa": 1, "g1": 1}, "fock", truncation="total"
             ),
             "truncation",
+        ),
+        (
+            lambda: PhysicsConfig(**RABI, fixed_couplings={"g3": 1.0}),
+            "not couplings of",
+        ),
+        (
+            lambda: PhysicsConfig(
+                **RABI, fixed_couplings={"g2": 1.0}, coupling_init={"g2": 0.5}
+            ),
+            "both fixed and initialised",
+        ),
+        (lambda: PhysicsConfig(**RABI, coupling_init={"g2": 0.0}), "start at 0"),
+        (lambda: PhysicsConfig(**RABI, fixed_couplings={"g2": -1.0}), "non-negative"),
+        (
+            lambda: PhysicsConfig(
+                **RABI, learn_couplings=False, fixed_couplings={"g2": 1.0}
+            ),
+            "needs learn_couplings",
         ),
         (lambda: TrainingConfig(epochs=10, final_learning_rate=0), "final_learning"),
         (lambda: TrainingConfig(epochs=10, window_start=0), "window_start"),
