@@ -1,0 +1,22 @@
+# Legacy JC experiment (Fock superposition): JC data, JC ODE loss,
+# from |g> ⊗ (|0> + |1> + |2>)/√3. Legacy settings: field truncation, ODE sum.
+experiment:
+  name: legacy_jc_fock_superposition
+  description: Legacy settings, learn g1 and the state from a Fock superposition.
+  seeds: [42, 43]
+physics:
+  picture: interaction
+  params: {wc: 100.0, wa: 100.0, g1: 1.0}
+  init_state: fock_superposition
+  dims: {atom: 2, field: 3}
+  positivity: abs
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 200
+  n_data_points: 200
+model:
+  hidden_units: [50, 50, 50]
+  activation: sine
+training:
+  epochs: 30000
+  learning_rate: 0.001

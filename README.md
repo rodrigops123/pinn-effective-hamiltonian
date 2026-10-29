@@ -137,6 +137,7 @@ the physics they were trained with when evaluating them.
 ```
 configs/                     one YAML file per experiment
 configs/studies/             method studies (see docs/studies/)
+configs/reproduction/        reruns of the legacy experiments
 docs/studies/                study reports
 scripts/
     train.py                 train an experiment, once per seed

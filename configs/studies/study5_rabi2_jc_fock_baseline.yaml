@@ -1,0 +1,35 @@
+# Does the loss balance and learning rate of the atom_* recipe (docs/studies/coherent_squeeze.md)
+# also suit rabi2_jc_fock (configs/rabi2_jc_fock.yaml)? Variant 'baseline': The experiment as configured.
+experiment:
+  name: study5_rabi2_jc_fock_baseline
+  description: rabi2_jc_fock with the atom_* recipe check. The experiment as configured.
+  seeds:
+  - 100
+  - 101
+  - 104
+  - 109
+physics:
+  picture: rabi2_ip
+  params:
+    wc: 100.0
+    wa: 100.0
+    g1: 1.0
+    g2: 0.0
+  init_state: fock
+  dims:
+    atom: 2
+    field: 2
+  positivity: softplus
+data:
+  tfinal: 25.132741228718345
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 50000
+  learning_rate: 0.01

@@ -1,0 +1,33 @@
+# Does the recipe that fixes atom_coherent (docs/studies/coherent_squeeze.md) also suit
+# atom_fock (configs/atom_fock.yaml)? Variant 'baseline': The experiment as configured.
+experiment:
+  name: study4_fock_baseline
+  description: atom_fock with the atom_coherent recipe check. The experiment as configured.
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+physics:
+  picture: atom
+  params:
+    wc: 1.0
+    wa: 1.0
+    g1: 1.0
+  init_state: fock
+  dims:
+    atom: 2
+    field: 2
+data:
+  tfinal: 6.283185307179586
+  n_time_steps: 200
+  n_data_points: 200
+model:
+  hidden_units:
+  - 100
+  - 100
+  - 100
+  activation: sine
+training:
+  epochs: 30000
+  learning_rate: 0.01
