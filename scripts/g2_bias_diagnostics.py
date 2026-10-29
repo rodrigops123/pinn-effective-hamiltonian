@@ -132,21 +132,22 @@ def main():
     parser.add_argument("--epochs", type=int, default=20000)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--hidden-units", type=int, nargs="+")
+    parser.add_argument("--input-scale", type=float)
+    parser.add_argument("--skip-exact", action="store_true")
     parser.add_argument("--out")
     args = parser.parse_args()
 
     results = {}
     for path in args.configs:
         config = load_experiment(path).config
+        model = config.model
         if args.hidden_units:
-            config = dataclasses.replace(
-                config,
-                model=dataclasses.replace(
-                    config.model, hidden_units=tuple(args.hidden_units)
-                ),
-            )
+            model = dataclasses.replace(model, hidden_units=tuple(args.hidden_units))
+        if args.input_scale:
+            model = dataclasses.replace(model, input_scale=args.input_scale)
+        config = dataclasses.replace(config, model=model)
         results[path] = {
-            "exact": exact_landscape(config),
+            "exact": None if args.skip_exact else exact_landscape(config),
             "supervised": supervised_fit(
                 config, args.seed, args.epochs, args.learning_rate
             ),
