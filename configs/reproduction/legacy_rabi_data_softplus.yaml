@@ -1,0 +1,22 @@
+# Legacy Rabi-loss experiment: Rabi data (g1 = g2 = 1) at ωc = ωa = 100, learned with
+# the Rabi model in its interaction picture, positivity g = softplus(θ).
+experiment:
+  name: legacy_rabi_data_softplus
+  description: Legacy settings, learn g1 and g2 from Rabi data (g1 = g2 = 1), softplus positivity.
+  seeds: [100, 101]
+physics:
+  picture: rabi2_ip
+  params: {wc: 100.0, wa: 100.0, g1: 1.0, g2: 1.0}
+  init_state: fock
+  dims: {atom: 2, field: 2}
+  positivity: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 1000  # as in the legacy runs; more than the samples, so all 500 are used
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+training:
+  epochs: 50000
+  learning_rate: 0.01
