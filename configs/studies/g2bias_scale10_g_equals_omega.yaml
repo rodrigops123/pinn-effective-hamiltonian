@@ -1,0 +1,23 @@
+# g2-bias study, step 2: configs/rabi2_g_equals_omega_fock.yaml with the network
+# input scaled to 10t; checks that the regime that already works still does.
+experiment:
+  name: g2bias_scale10_g_equals_omega
+  description: rabi2_g_equals_omega_fock with network input 10t.
+  seeds: [42, 43, 44, 45, 46]
+physics:
+  picture: rabi2_ip
+  params: {wc: 1.0, wa: 1.0, g1: 1.0, g2: 1.0}
+  init_state: fock
+  dims: {atom: 2, field: 4}
+  positivity: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 400
+  n_data_points: 400
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 30000
+  learning_rate: 0.01
