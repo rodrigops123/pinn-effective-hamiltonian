@@ -9,7 +9,12 @@ from pinn_jc.models.activations import Sine
 
 
 class MLP(nn.Module):
-    """Fully connected network: hidden layers with activation and dropout, linear output."""
+    """Fully connected network: hidden layers with activation and dropout, linear output.
+
+    The input is multiplied by ``input_scale`` first. Scaling up the time input lets a
+    sine network represent faster oscillations (it raises the frequencies of the first
+    layer, as ω0 does in SIREN); it adds no parameters.
+    """
 
     def __init__(
         self,
@@ -18,8 +23,10 @@ class MLP(nn.Module):
         hidden_units: Sequence[int],
         activation: nn.Module | Sequence[nn.Module] | None = None,
         dropout: float = 0.0,
+        input_scale: float = 1.0,
     ):
         super().__init__()
+        self.input_scale = input_scale
         widths = [in_features, *hidden_units]
         self.hidden_layers = nn.ModuleList(
             nn.Linear(n_in, n_out) for n_in, n_out in pairwise(widths)
@@ -39,6 +46,8 @@ class MLP(nn.Module):
 
     def forward(self, x):
         """Map inputs (N, in_features) to outputs (N, out_features)."""
+        if self.input_scale != 1.0:
+            x = self.input_scale * x
         for layer, activation, dropout in zip(
             self.hidden_layers, self.activations, self.dropouts, strict=True
         ):

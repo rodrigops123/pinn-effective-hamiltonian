@@ -77,6 +77,7 @@ def build_models(
             hidden_units=model.hidden_units,
             activation=activation,
             dropout=model.dropout,
+            input_scale=model.input_scale,
         )
 
     real = network()

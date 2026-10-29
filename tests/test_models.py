@@ -94,6 +94,16 @@ def test_couplings_reject_unknown_positivity():
         Couplings(2, "relu")
 
 
+def test_input_scale_multiplies_the_input_and_adds_no_parameters():
+    torch.manual_seed(0)
+    plain = build_models(4, model=ModelConfig(hidden_units=(16,)))[0]
+    torch.manual_seed(0)
+    scaled = build_models(4, model=ModelConfig(hidden_units=(16,), input_scale=3.0))[0]
+
+    torch.testing.assert_close(scaled(TIME), plain(3.0 * TIME))
+    assert scaled.state_dict().keys() == plain.state_dict().keys()
+
+
 def test_build_models_reproduces_the_legacy_initialisation():
     """Same seed, same weights and couplings as the legacy network construction."""
     torch.manual_seed(7)

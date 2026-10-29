@@ -88,6 +88,7 @@ def test_fixed_couplings_have_no_learnable_parameters():
         ),
         (lambda: ModelConfig(hidden_units=()), "hidden_units"),
         (lambda: ModelConfig(activation="relu"), "activation"),
+        (lambda: ModelConfig(input_scale=0), "input_scale"),
         (lambda: LossWeights(ode=-1), "non-negative"),
         (lambda: TrainingConfig(epochs=10, learning_rate=0), "learning_rate"),
         (lambda: TrainingConfig(epochs=10, lr_schedule="step"), "lr_schedule"),

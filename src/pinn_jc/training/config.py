@@ -143,13 +143,15 @@ class ModelConfig:
     """Architecture of the real- and imaginary-part networks.
 
     With ``hard_initial_condition`` the state is ψ(t) = ψ0 + (t - t0) net(t), which
-    satisfies the initial condition exactly instead of through ``loss_ic``.
+    satisfies the initial condition exactly instead of through ``loss_ic``. Both
+    networks see ``input_scale`` × time (``MLP``).
     """
 
     hidden_units: tuple[int, ...] = (100, 100, 100)
     activation: str = "sine"
     dropout: float = 0.0
     hard_initial_condition: bool = False
+    input_scale: float = 1.0
 
     def __post_init__(self):
         object.__setattr__(self, "hidden_units", tuple(self.hidden_units))
@@ -163,6 +165,8 @@ class ModelConfig:
             )
         if not 0 <= self.dropout < 1:
             raise ValueError(f"dropout must be in [0, 1), got {self.dropout}")
+        if self.input_scale <= 0:
+            raise ValueError(f"input_scale must be positive, got {self.input_scale}")
 
 
 @dataclass(frozen=True)
