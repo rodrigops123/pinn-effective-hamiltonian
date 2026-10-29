@@ -1,0 +1,24 @@
+# g2-bias study, diagnostic A: profile of the losses in g2. Same settings as
+# configs/reproduction/control_jc_data_w5_recipe.yaml, with g2 fixed at 0.25.
+experiment:
+  name: g2bias_profile_jc_g2_025
+  description: g2 profile, JC data (true g2 = 0) at ω = 5, g2 fixed at 0.25, g1 and the state learned.
+  seeds: [100, 101]
+physics:
+  picture: rabi2_ip
+  params: {wc: 5.0, wa: 5.0, g1: 1.0, g2: 0.0}
+  init_state: fock
+  dims: {atom: 2, field: 6}
+  positivity: softplus
+  fixed_couplings: {g2: 0.25}
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+training:
+  epochs: 50000
+  learning_rate: 0.001
+  ode_reduction: mean
