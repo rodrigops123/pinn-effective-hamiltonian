@@ -19,7 +19,9 @@ class Couplings(nn.Module):
     coupling, None where they do not apply: an ``initial`` value g sets θ = f⁻¹(g)
     instead of the random draw; a ``fixed`` value is returned as is and never learned.
     θ is drawn for every coupling in any case, so the random stream does not depend on
-    them.
+    them. With ``draw="softplus"`` the random start is g = softplus(θ) (0.69 to 1.31)
+    whatever ``positivity`` is, so abs and softplus runs with the same seed start from
+    the same couplings; the default, ``draw="positivity"``, starts at g = f(θ).
     """
 
     def __init__(
@@ -28,6 +30,7 @@ class Couplings(nn.Module):
         positivity: Positivity = "softplus",
         initial: Sequence[float | None] | None = None,
         fixed: Sequence[float | None] | None = None,
+        draw: Literal["positivity", "softplus"] = "positivity",
     ):
         super().__init__()
         if positivity not in ("softplus", "abs"):
@@ -42,8 +45,12 @@ class Couplings(nn.Module):
                 f"got {len(initial)} and {len(fixed)}"
             )
         self.positivity = positivity
+        if draw not in ("positivity", "softplus"):
+            raise ValueError(f"draw must be 'positivity' or 'softplus', got {draw!r}")
         self.raw = nn.Parameter(torch.rand(n_couplings))
         with torch.no_grad():
+            if draw == "softplus" and positivity == "abs":
+                self.raw.copy_(F.softplus(self.raw))
             for i, value in enumerate(initial):
                 if value is not None:
                     self.raw[i] = _inverse(value, positivity)

@@ -89,6 +89,18 @@ def test_coupling_options_do_not_change_the_random_stream():
     assert torch.equal(torch.rand(1), expected_next)
 
 
+def test_softplus_draw_starts_abs_couplings_where_softplus_starts():
+    torch.manual_seed(0)
+    softplus = Couplings(3, "softplus")()
+    torch.manual_seed(0)
+
+    abs_couplings = Couplings(3, "abs", draw="softplus")
+
+    torch.testing.assert_close(abs_couplings(), softplus)
+    torch.manual_seed(0)
+    assert torch.equal(Couplings(3, "softplus", draw="softplus")(), softplus)
+
+
 def test_couplings_reject_unknown_positivity():
     with pytest.raises(ValueError, match="positivity must be"):
         Couplings(2, "relu")

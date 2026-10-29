@@ -110,6 +110,7 @@ def test_fixed_couplings_have_no_learnable_parameters():
             "both fixed and initialised",
         ),
         (lambda: PhysicsConfig(**RABI, coupling_init={"g2": 0.0}), "start at 0"),
+        (lambda: PhysicsConfig(**RABI, coupling_draw="normal"), "coupling_draw"),
         (lambda: PhysicsConfig(**RABI, fixed_couplings={"g2": -1.0}), "non-negative"),
         (
             lambda: PhysicsConfig(

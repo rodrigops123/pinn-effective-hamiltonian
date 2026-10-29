@@ -1,0 +1,28 @@
+# Positivity benchmark: does abs make g2 converge faster than softplus?
+# The g2-bias study's input-10t setting at ω = 5 (JC data), with g2 started
+# at exactly 1 for both maps. g1 starts from the softplus draw (coupling_draw), as in
+# the softplus runs: from the abs draw, seed 104 started at g1 = 0.055 and was trapped.
+experiment:
+  name: positivity_abs_draw_jc
+  description: JC data (true g2 = 0) at ω = 5, input 10t, abs positivity, g2 starts at 1, g1 from the softplus draw.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 5.0, wa: 5.0, g1: 1.0, g2: 0.0}
+  init_state: fock
+  dims: {atom: 2, field: 6}
+  positivity: abs
+  coupling_init: {g2: 1.0}
+  coupling_draw: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 100000
+  learning_rate: 0.001
+  ode_reduction: mean

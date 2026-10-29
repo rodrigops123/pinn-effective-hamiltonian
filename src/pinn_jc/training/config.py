@@ -25,7 +25,8 @@ class PhysicsConfig:
     ``truncation`` selects the basis the PINN works in (``physics.basis``).
     ``fixed_couplings`` keeps the named couplings at the given values while the others
     are learned; ``coupling_init`` starts the named learned couplings at the given
-    values instead of a random draw.
+    values instead of a random draw. ``coupling_draw`` is ``Couplings``' ``draw``:
+    "softplus" starts abs couplings from the same values as softplus ones.
     """
 
     picture: str
@@ -38,6 +39,7 @@ class PhysicsConfig:
     truncation: str = "field"
     fixed_couplings: dict[str, float] = field(default_factory=dict)
     coupling_init: dict[str, float] = field(default_factory=dict)
+    coupling_draw: str = "positivity"
 
     def __post_init__(self):
         picture = get_picture(self.picture)
@@ -75,6 +77,11 @@ class PhysicsConfig:
                 raise ValueError(f"{name} needs learn_couplings")
             if any(value < 0 for value in values.values()):
                 raise ValueError(f"{name} must be non-negative, got {values}")
+        if self.coupling_draw not in ("positivity", "softplus"):
+            raise ValueError(
+                "coupling_draw must be 'positivity' or 'softplus', "
+                f"got {self.coupling_draw!r}"
+            )
         if set(self.fixed_couplings) & set(self.coupling_init):
             raise ValueError("a coupling cannot be both fixed and initialised")
         if self.positivity == "softplus" and 0 in self.coupling_init.values():
