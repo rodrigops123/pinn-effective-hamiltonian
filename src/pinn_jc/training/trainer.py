@@ -241,6 +241,8 @@ def train(config: ExperimentConfig) -> TrainingResult:
         )
 
         total_loss.backward()
+        if couplings is not None and epoch < training.freeze_couplings_epochs:
+            couplings.raw.grad = None  # Adam skips parameters without a gradient
         optimizer.step()
         if scheduler is not None:
             scheduler.step()

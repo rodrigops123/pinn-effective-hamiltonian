@@ -243,3 +243,22 @@ def test_fixed_and_initialised_couplings_in_training():
     np.testing.assert_allclose(couplings[:, 1], 0.25)
     assert couplings[0, 0] == pytest.approx(0.5, abs=0.02)  # after one Adam step
     assert couplings[-1, 0] != couplings[0, 0]
+
+
+def test_frozen_couplings_start_learning_after_the_freeze():
+    config = _config(
+        physics={
+            "picture": "rabi2_ip",
+            "params": {"wc": 5.0, "wa": 5.0, "g1": 1.0, "g2": 1.0},
+            "dims": {"atom": 2, "field": 3},
+            "coupling_init": {"g2": 0.05},
+        },
+        training={"freeze_couplings_epochs": 3, "seed": 0},
+    )
+
+    result = train(config)
+    couplings = np.array(result.history.couplings)
+
+    np.testing.assert_array_equal(couplings[:4], np.repeat(couplings[:1], 4, axis=0))
+    assert couplings[0, 1] == pytest.approx(0.05)
+    assert not np.array_equal(couplings[-1], couplings[3])
