@@ -1,0 +1,28 @@
+# Measurement-noise study (docs/studies/measurement_noise.md): configs/rwa_sweep/rwa_jc_w7.yaml
+# with Gaussian noise of standard deviation 0.01 on the fitted expectation values
+# (about 2500 shots per point), the same realisation for every seed.
+experiment:
+  name: noise_jc_w7
+  description: JC data at g/ω ≈ 0.14, learn g1 and g2 with the Rabi model, noise 0.01.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 7, wa: 7, g1: 1.0, g2: 0}
+  init_state: fock
+  dims: {atom: 2, field: 5}
+  positivity: abs
+  coupling_draw: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+  noise_std: 0.01
+  noise_seed: 0
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 50000
+  learning_rate: 0.001
+  ode_reduction: mean
