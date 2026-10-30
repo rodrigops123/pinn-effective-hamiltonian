@@ -1,0 +1,27 @@
+# RWA sweep check (docs/studies/rwa_sweep.md): configs/rwa_sweep/rwa_rabi_w10.yaml with g2
+# fixed at its true value 1, g1 and the state learned. Its total loss, against that of
+# the free runs (which reach g2 = 0), tells whether the data favour the full model.
+experiment:
+  name: rwa_rabi_w10_g2_fixed
+  description: Rabi data at g/ω = 0.1, g2 fixed at 1, learn g1 with the Rabi model.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 10, wa: 10, g1: 1.0, g2: 1}
+  init_state: fock
+  dims: {atom: 2, field: 5}
+  positivity: abs
+  coupling_draw: softplus
+  fixed_couplings: {g2: 1.0}
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 50000
+  learning_rate: 0.001
+  ode_reduction: mean

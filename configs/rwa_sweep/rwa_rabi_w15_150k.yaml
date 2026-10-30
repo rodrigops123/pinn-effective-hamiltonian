@@ -1,0 +1,28 @@
+# RWA sweep (docs/studies/rwa_sweep.md): Rabi data (g1 = 1, g2 = 1) at ωc = ωa = 15,
+# g/ω ≈ 0.067, learned with the Rabi model in its interaction picture, g2 started near 1
+# (full model), trained for 150k epochs. Field dimension 4 reproduces the observables of a
+# 40-level field to 1e-4; 500 time steps give 17 points per period of the
+# counter-rotating terms (frequency 2ω). Settings of docs/studies/positivity_benchmark.md.
+experiment:
+  name: rwa_rabi_w15_150k
+  description: Rabi data at g/ω ≈ 0.067, learn g1 and g2 with the Rabi model, 150k epochs.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 15, wa: 15, g1: 1.0, g2: 1}
+  init_state: fock
+  dims: {atom: 2, field: 4}
+  positivity: abs
+  coupling_draw: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 150000
+  learning_rate: 0.001
+  ode_reduction: mean
