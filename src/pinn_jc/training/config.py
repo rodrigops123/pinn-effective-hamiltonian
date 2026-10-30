@@ -113,7 +113,11 @@ class DataConfig:
     The last ``validation_fraction`` of the time grid is held out: no loss term sees
     it, so it measures extrapolation in time. ``n_data_points`` follows
     ``trainer.data_indices`` (None or 1: first instant only). With ``scale_time`` the
-    network sees τ = t / tfinal instead of t.
+    network sees τ = t / tfinal instead of t. ``noise_std`` > 0 adds Gaussian
+    measurement noise of that standard deviation to the expectation values the data
+    loss fits (``trainer.noisy_expectations``); the realisation depends only on
+    ``noise_seed``, so it is the same for every training seed. The initial state and
+    the evaluation stay exact.
     """
 
     tfinal: float
@@ -122,6 +126,8 @@ class DataConfig:
     validation_fraction: float = 0.0
     scale_time: bool = False
     data_seed: int = 42
+    noise_std: float = 0.0
+    noise_seed: int = 0
 
     def __post_init__(self):
         if self.tfinal <= 0:
@@ -138,6 +144,8 @@ class DataConfig:
             raise ValueError(
                 f"n_data_points must be None or >= 1, got {self.n_data_points}"
             )
+        if self.noise_std < 0:
+            raise ValueError(f"noise_std must be non-negative, got {self.noise_std}")
 
     @property
     def n_train(self) -> int:

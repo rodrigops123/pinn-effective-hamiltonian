@@ -123,6 +123,9 @@ plots.save_figure(fig, "figures/atom_fock_expectations")
   trains), `model.hard_initial_condition` and `model.input_scale` (the networks see
   input_scale × t; 10 lets them represent the fast counter-rotating terms, see
   `docs/studies/g2_bias.md`).
+- **Measurement noise.** `data.noise_std` adds Gaussian noise of that standard deviation
+  to the expectation values the data loss fits, drawn from `data.noise_seed` (the same
+  realisation for every training seed); the initial state and the evaluation stay exact.
 - **Learned couplings** are non-negative, g = f(θ): `physics.positivity` is `softplus`
   (default) or `abs`. `physics.coupling_draw: softplus` starts abs couplings where
   softplus ones start (0.69 to 1.31) instead of in U(0, 1);

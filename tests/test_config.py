@@ -122,6 +122,10 @@ def test_fixed_couplings_have_no_learnable_parameters():
         (lambda: TrainingConfig(epochs=10, window_start=0), "window_start"),
         (lambda: TrainingConfig(epochs=10, window_epochs=-1), "window_epochs"),
         (
+            lambda: DataConfig(tfinal=1.0, n_time_steps=10, noise_std=-0.1),
+            "noise_std",
+        ),
+        (
             lambda: TrainingConfig(epochs=10, freeze_couplings_epochs=-1),
             "freeze_couplings_epochs",
         ),
