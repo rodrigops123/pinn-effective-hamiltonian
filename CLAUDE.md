@@ -66,5 +66,9 @@ physics/ (operators, PICTURES registry, INITIAL_STATES, Frame)
   - Work on a branch and merge pull requests with merge commits, not squash: run
     directories record commit hashes.
   - Do not add AI attribution or co-author lines to commits or pull requests.
+  - Before opening a pull request, update the README with what users need from it
+    (new config options, scripts, experiments, changed conventions or results);
+    skip internal changes that do not affect how the repository is used. New study
+    reports also go in the index `docs/studies/README.md`.
 - **Notebooks:** `examples/exponential_decay_pinn.ipynb` is a self-contained
   introductory example, independent of `pinn_jc`; keep its code unchanged. Notebook outputs are stripped on commit.
