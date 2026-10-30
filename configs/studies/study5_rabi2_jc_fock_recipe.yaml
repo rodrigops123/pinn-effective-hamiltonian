@@ -1,5 +1,5 @@
 # Does the loss balance and learning rate of the atom_* recipe (docs/studies/coherent_squeeze.md)
-# also suit rabi2_jc_fock (configs/rabi2_jc_fock.yaml)? Variant 'recipe': ODE loss averaged over components and learning rate 1e-3 (the excitation truncation does not apply to rabi2_ip).
+# also suit rabi2_jc_fock (configs/rabi2_jc_fock.yaml, since removed)? Variant 'recipe': ODE loss averaged over components and learning rate 1e-3 (the excitation truncation does not apply to rabi2_ip).
 experiment:
   name: study5_rabi2_jc_fock_recipe
   description: rabi2_jc_fock with the atom_* recipe check. ODE loss averaged over

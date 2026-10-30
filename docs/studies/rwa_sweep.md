@@ -16,7 +16,7 @@ would tune the method to the expected answer.
 
 | ω | g/ω | field dim | time steps (points per CR period) | Δ MAE | Δ max |
 |---|---|---|---|---|---|
-| 100 | 0.01 | 3 | 2001 (10) | 3.0e-5 | 8.9e-5 |
+| 100 | 0.01 | 3 | 2001 (10) | 3.0e-5* | 8.9e-5* |
 | 20 | 0.05 | 4 | 500 (12) | 9.0e-4 | 2.6e-3 |
 | 15 | 0.067 | 4 | 500 (17) | 1.6e-3 | 4.6e-3 |
 | 10 | 0.1 | 5 | 500 (25) | 3.7e-3 | 1.1e-2 |
@@ -24,6 +24,11 @@ would tune the method to the expected answer.
 | 5 | 0.2 | 6 | 500 (50) | 1.6e-2 | 4.1e-2 |
 | 2 | 0.5 | 10 | 500 (125) | 0.21 | 0.65 |
 | 1 | 1 | 18 | 500 (250) | 1.1 | 4.3 |
+
+\* At the solver's accuracy: with g2 ≠ 0 the data are integrated in the lab frame, where
+the error at ω = 100 is about 4e-5 over [0, 2π] (measured with field dimension 2, where
+g2 has no effect from |e,0⟩). Δ at ω = 100 is thus an upper bound, far below the fit
+floor either way.
 
 - Field dimension: the smallest that reproduces the Rabi observables of a 40-level field
   to 1e-4 (at least 3, for |e,0⟩ → |g,1⟩ → |e,2⟩).
@@ -163,6 +168,14 @@ detectable by loss.
 4. The g = ω result of `rabi2_g_equals_omega_fock` does not hold at a converged field
    dimension with its settings; the config is removed and the sweep's ω = 1 point
    replaces it.
+
+## The legacy experiment `rabi2_jc_fock` (now removed)
+
+JC data at ω = 100 learned with the Rabi model, like `rwa_jc_w100`, but with field
+dimension 2. From |e,0⟩ the counter-rotating term only leads to |e,2⟩, which that
+truncation removes, so g2 has no effect on the dynamics at all and cannot be learned
+(`coherent_squeeze.md`, round 5: g2 = 0.53–0.72 with the recipe). `rwa_jc_w100`
+replaces it.
 
 ## Open questions
 

@@ -1,5 +1,5 @@
 # Does the loss balance and learning rate of the atom_* recipe (docs/studies/coherent_squeeze.md)
-# also suit rabi2_jc_fock (configs/rabi2_jc_fock.yaml)? Variant 'baseline': The experiment as configured.
+# also suit rabi2_jc_fock (configs/rabi2_jc_fock.yaml, since removed)? Variant 'baseline': The experiment as configured.
 experiment:
   name: study5_rabi2_jc_fock_baseline
   description: rabi2_jc_fock with the atom_* recipe check. The experiment as configured.
