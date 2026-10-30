@@ -1,0 +1,28 @@
+# RWA sweep (docs/studies/rwa_sweep.md): JC data (g1 = 1, g2 = 0) at ωc = ωa = 7,
+# g/ω ≈ 0.14, learned with the Rabi model in its interaction picture, g2 started near 1
+# (full model). Field dimension 5 reproduces the observables of a 40-level field
+# to 1e-4; 500 time steps give 36 points per period of the
+# counter-rotating terms (frequency 2ω). Settings of docs/studies/positivity_benchmark.md.
+experiment:
+  name: rwa_jc_w7
+  description: JC data at g/ω ≈ 0.14, learn g1 and g2 with the Rabi model.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 7, wa: 7, g1: 1.0, g2: 0}
+  init_state: fock
+  dims: {atom: 2, field: 5}
+  positivity: abs
+  coupling_draw: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 50000
+  learning_rate: 0.001
+  ode_reduction: mean
