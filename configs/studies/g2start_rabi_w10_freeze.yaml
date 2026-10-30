@@ -1,0 +1,28 @@
+# g2-start study (docs/studies/g2_start.md): configs/rwa_sweep/rwa_rabi_w10.yaml with g2
+# started at 0.05 instead of near 1 (g1 from the softplus draw as before). Both couplings are
+# held at their start for the first 10k epochs while the state trains.
+experiment:
+  name: g2start_rabi_w10_freeze
+  description: Rabi data at g/ω = 0.1, learn g1 and g2 with the Rabi model, g2 started at 0.05, couplings frozen for 10k epochs.
+  seeds: [100, 101, 102, 103, 104]
+physics:
+  picture: rabi2_ip
+  params: {wc: 10, wa: 10, g1: 1.0, g2: 1}
+  init_state: fock
+  dims: {atom: 2, field: 5}
+  positivity: abs
+  coupling_draw: softplus
+  coupling_init: {g2: 0.05}
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 50000
+  learning_rate: 0.001
+  freeze_couplings_epochs: 10000
+  ode_reduction: mean
