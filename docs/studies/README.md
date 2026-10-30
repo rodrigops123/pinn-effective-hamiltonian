@@ -11,6 +11,7 @@ them. In the order they build on each other:
 | [positivity_benchmark.md](positivity_benchmark.md) | abs or softplus for the couplings? | abs with the softplus start (`physics.coupling_draw`) is as accurate and 4–10× faster at removing an unsupported g2 |
 | [rwa_sweep.md](rwa_sweep.md) | Does the PINN learn the effective JC model where the RWA holds and the full model where it does not? | Yes at both ends; the switch lies between g/ω = 0.067 and 0.1 and reflects a parsimony bias of the method |
 | [g2_start.md](g2_start.md) | What if g2 starts near 0? | A trap at every ω, from a symmetry (the data are even in g2); protocol: two starts, lowest total loss |
+| [measurement_noise.md](measurement_noise.md) | Does the result survive noisy data (σ = 0.01, about 2500 shots)? | Yes: effective model where the RWA holds, full model where it does not, two-start selection still right; the PINN filters the noise |
 
 ## Conventions shared by the reports
 

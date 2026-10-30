@@ -48,6 +48,22 @@ def data_indices(n_samples, n_points, seed=42):
     return torch.randperm(n_samples, generator=generator)[:n_points]
 
 
+def noisy_expectations(expectations, std, seed=0):
+    """Return ``expectations`` plus Gaussian noise of standard deviation ``std``.
+
+    The noise comes from a private generator seeded with ``seed``, so the global random
+    stream (and with it the network initialisation) is unchanged. ``std`` = 0 returns
+    ``expectations`` itself.
+    """
+    if std == 0:
+        return expectations
+    generator = torch.Generator().manual_seed(seed)
+    noise = torch.randn(
+        expectations.shape, generator=generator, dtype=expectations.dtype
+    )
+    return expectations + std * noise.to(expectations.device)
+
+
 def build_models(
     output_dim,
     n_couplings=0,
@@ -165,7 +181,10 @@ def train(config: ExperimentConfig) -> TrainingResult:
     n_train = data_config.n_train
     time = data.time
     time_train = time if n_train == len(time) else time[:n_train]
-    sim_state, sim_expect = data.states[:n_train], data.expectations[:n_train]
+    sim_state = data.states[:n_train]
+    sim_expect = noisy_expectations(
+        data.expectations[:n_train], data_config.noise_std, data_config.noise_seed
+    )
     indices = data_indices(n_train, data_config.n_data_points, data_config.data_seed)
 
     # The network sees τ = t / T; the ODE becomes dψ/dτ = -i T H(t) ψ, where the

@@ -8,7 +8,12 @@ import torch
 
 from pinn_jc.training.config import ExperimentConfig
 from pinn_jc.training.losses import loss_data, loss_ode, state_and_time_derivative
-from pinn_jc.training.trainer import build_models, data_indices, train
+from pinn_jc.training.trainer import (
+    build_models,
+    data_indices,
+    noisy_expectations,
+    train,
+)
 
 
 def _config(**overrides):
@@ -262,3 +267,27 @@ def test_frozen_couplings_start_learning_after_the_freeze():
     np.testing.assert_array_equal(couplings[:4], np.repeat(couplings[:1], 4, axis=0))
     assert couplings[0, 1] == pytest.approx(0.05)
     assert not np.array_equal(couplings[-1], couplings[3])
+
+
+def test_noisy_expectations_are_reproducible_and_leave_the_global_stream():
+    exact = torch.zeros(2000, 2, dtype=torch.float64)
+    torch.manual_seed(0)
+    expected_draw = torch.rand(1)
+
+    torch.manual_seed(0)
+    noisy = noisy_expectations(exact, 0.01, seed=3)
+    draw = torch.rand(1)
+
+    assert noisy_expectations(exact, 0.0) is exact
+    torch.testing.assert_close(noisy, noisy_expectations(exact, 0.01, seed=3))
+    assert not torch.equal(noisy, noisy_expectations(exact, 0.01, seed=4))
+    assert noisy.std().item() == pytest.approx(0.01, rel=0.05)
+    torch.testing.assert_close(draw, expected_draw)
+
+
+def test_noise_changes_the_fit_but_not_the_initialisation():
+    clean = train(_config(training={"seed": 0})).history
+    noisy = train(_config(data={"noise_std": 0.05}, training={"seed": 0})).history
+
+    assert noisy.loss_ic[0] == pytest.approx(clean.loss_ic[0])
+    assert noisy.loss_data[0] != pytest.approx(clean.loss_data[0])

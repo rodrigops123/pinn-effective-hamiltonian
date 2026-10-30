@@ -10,7 +10,9 @@ For each ωc = ωa = ω, with g1 = g = 1 and the initial state |e,0>, on t in [0
 - resolution bands: the data loss, against JC data and against Rabi data, of the exact
   trajectory of every g2 on a grid. The range of g2 whose data loss stays below the fit
   floor is what the data cannot tell from the truth;
-- the time grid: points per period of the counter-rotating terms (frequency Σ = 2ω).
+- the time grid: points per period of the counter-rotating terms (frequency Σ = 2ω);
+- with ``--noise-stds``: the same Rabi–JC gap against noisy Rabi data, MAE(data, JC)
+  - MAE(data, Rabi), for each noise level (docs/studies/measurement_noise.md).
 
     uv run python scripts/rwa_sweep_preparation.py --omegas 100 20 10 5 2 1
 """
@@ -19,8 +21,10 @@ import argparse
 import json
 
 import numpy as np
+import torch
 
 from pinn_jc.data.simulate import simulate
+from pinn_jc.training.trainer import noisy_expectations
 
 G2_GRID = (0.0, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0)
 
@@ -39,6 +43,12 @@ def _expectations(omega, g2, field, n_time_steps, g=1.0):
 
 def _mae(a, b):
     return float(np.abs(a - b).mean())
+
+
+def _noisy_gap(rabi, jc, std, seed):
+    """MAE(noisy Rabi data, JC) - MAE(noisy Rabi data, Rabi)."""
+    data = noisy_expectations(torch.from_numpy(rabi), std, seed).numpy()
+    return _mae(data, jc) - _mae(data, rabi)
 
 
 def field_dimension(omega, n_time_steps, tolerance, reference=40):
@@ -61,6 +71,8 @@ def main():
     parser.add_argument("--points-per-period", type=int, default=10)
     parser.add_argument("--min-time-steps", type=int, default=500)
     parser.add_argument("--dim-tolerance", type=float, default=1e-4)
+    parser.add_argument("--noise-stds", type=float, nargs="*", default=[])
+    parser.add_argument("--noise-seed", type=int, default=0)
     parser.add_argument("--out")
     args = parser.parse_args()
 
@@ -89,6 +101,10 @@ def main():
             "delta_max": float(np.abs(rabi - jc).max()),
             "profile_vs_jc_data": profiles["jc"],
             "profile_vs_rabi_data": profiles["rabi"],
+            "gap_vs_noisy_rabi_data": {
+                std: _noisy_gap(rabi, jc, std, args.noise_seed)
+                for std in args.noise_stds
+            },
         }
         print(json.dumps({omega: results[omega]}, indent=1), flush=True)
     if args.out:
