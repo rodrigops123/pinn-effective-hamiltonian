@@ -171,13 +171,16 @@ detectable by loss.
 - Whether ω = 15 flips with even longer training, as ω = 10 did.
 - Whether a larger input scale or Fourier features at Σ move the switch (it would make
   the input scale depend on ω, see above).
-- A robust start far from the truth, e.g. g2 from near 0 (backlog).
+- A start far from the truth: answered in `g2_start.md`. From g2 near 0 the PINN stays
+  at 0 at every ω (the data are even in g2); two starts with lowest-loss selection
+  give the right model.
 
 ## Reproducing
 
 ```bash
 uv run python scripts/rwa_sweep_preparation.py --omegas 100 20 15 10 7 5 2 1
 uv run python scripts/train.py configs/rwa_sweep/<name>.yaml --workers 5
+uv run python scripts/summarize_runs.py saved_artifacts/runs/<name> --trajectory 5000 20000
 ```
 
 With five workers each 50k-epoch config takes about 5 min at ω = 5–20, 7–8 min at

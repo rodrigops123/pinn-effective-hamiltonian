@@ -118,8 +118,17 @@ plots.save_figure(fig, "figures/atom_fock_expectations")
   artefact |e, N−1⟩ of Jaynes–Cummings (see `docs/studies/coherent_squeeze.md`).
 - **Training options** (all off by default): `training.ode_reduction` (`sum` or `mean`
   over components), `training.lr_schedule` (`cosine`, `exponential`) with
-  `final_learning_rate`, a growing time window (`window_start`, `window_epochs`) and
-  `model.hard_initial_condition`.
+  `final_learning_rate`, a growing time window (`window_start`, `window_epochs`),
+  `training.freeze_couplings_epochs` (couplings held at their start while the state
+  trains), `model.hard_initial_condition` and `model.input_scale` (the networks see
+  input_scale × t; 10 lets them represent the fast counter-rotating terms, see
+  `docs/studies/g2_bias.md`).
+- **Learned couplings** are non-negative, g = f(θ): `physics.positivity` is `softplus`
+  (default) or `abs`. `physics.coupling_draw: softplus` starts abs couplings where
+  softplus ones start (0.69 to 1.31) instead of in U(0, 1);
+  `physics.coupling_init: {g2: 0.05}` sets a start, and
+  `physics.fixed_couplings: {g2: 1.0}` holds a coupling fixed while the others are
+  learned.
 - **Fidelity** of a prediction: |⟨ψ|ψ_NN⟩|² / ‖ψ_NN‖².
 - Figures show time as g1·t when g1 is defined.
 
@@ -138,11 +147,15 @@ configs/                     one YAML file per experiment
 configs/studies/             method studies (see docs/studies/)
 configs/reproduction/        reruns of the legacy experiments
 configs/rwa_sweep/           Rabi vs JC across g/ω, including g = ω (docs/studies/rwa_sweep.md)
-docs/studies/                study reports
+docs/studies/                study reports (index in docs/studies/README.md)
 scripts/
     train.py                 train an experiment, once per seed
     make_figures.py          render the figures of saved runs
     migrate_pickles.py       convert result pickles of earlier code versions
+    summarize_runs.py        per-seed couplings, losses and fidelity (the study tables)
+    rwa_sweep_preparation.py field dimension, Rabi–JC difference and g2 resolution per ω
+    g2_bias_diagnostics.py   loss landscape and supervised-fit diagnostics of g2
+    g2_symmetry_check.py     the data are even in g2
 src/pinn_jc/
     physics/                 operators, Hamiltonian registry, initial states, frames
     data/simulate.py         exact QuTiP solutions in a requested frame
