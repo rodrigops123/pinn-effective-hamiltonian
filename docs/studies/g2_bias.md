@@ -117,9 +117,12 @@ Two caveats remain.
    that can represent the counter-rotating dynamics learns it.
 2. With `input_scale: 10` and the recipe, the PINN learns g2 ≈ 1 from Rabi data and
    drives g2 down towards 0 from JC data at ω = 5, while the g = ω experiment is
-   unaffected. This is the behaviour the paper's claim needs.
+   unaffected (that config used an unconverged field dimension, 4, and has since been
+   removed; see `rwa_sweep.md`). This is the behaviour the paper's claim needs.
 3. The result depends on the start: from g2 near 0 the PINN stays there. The protocol
-   must say how g2 starts. Two defensible options:
+   must say how g2 starts (decided in `g2_start.md`: the second option below, after
+   the trap turned out to hold at every ω for a symmetry reason). Two defensible
+   options:
    - **start from the full model** (all couplings near 1) and let the data switch off
      what they do not support; this matches the claim and the default initialisation;
    - **multi-start** (e.g. g2 from 0.05 and from 1) and keep the run with the lowest
@@ -130,6 +133,10 @@ Two caveats remain.
    resolved".
 
 ## Open questions for the sweep
+
+Followed up in `rwa_sweep.md` (one input scale, 10, for every ω; the grid at ω = 100)
+and `positivity_benchmark.md` (the slow decay with JC data).
+
 
 - Input scale per regime: 10t was chosen for Σ = 10. A fixed scale relative to the
   fastest frequency (e.g. input_scale ≈ Σ) or Fourier features at Σ would carry over to

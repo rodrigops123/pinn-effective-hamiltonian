@@ -107,6 +107,8 @@ basin there.
 
 ```bash
 uv run python scripts/train.py configs/studies/g2start_<name>.yaml --workers 5
+uv run python scripts/summarize_runs.py saved_artifacts/runs/g2start_<name>
+uv run python scripts/g2_symmetry_check.py --omega 5 --field 6   # the symmetry
 ```
 
 Each 50k-epoch config takes about 5 min with five workers at ω = 5–20, 7 min at ω = 2,
