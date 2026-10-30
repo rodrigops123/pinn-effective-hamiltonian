@@ -1,4 +1,4 @@
-# g2-bias study, step 2: configs/rabi2_g_equals_omega_fock.yaml with the network
+# g2-bias study, step 2: configs/rabi2_g_equals_omega_fock.yaml (since removed) with the network
 # input scaled to 10t; checks that the regime that already works still does.
 experiment:
   name: g2bias_scale10_g_equals_omega

@@ -40,7 +40,6 @@ Every experiment is a YAML file in `configs/`:
 | `atom_coherent` | same | \|g, α = 1⟩, N = 10 | g1 | 15 × 50 000 | 4.6 h |
 | `atom_squeeze` | same | \|g⟩ S(r = 1)\|0⟩, N = 15 | g1 | 5 × 30 000 | 58 min |
 | `rabi2_jc_fock` | Rabi in the interaction picture, JC data (g2 = 0), ω = 100 g1 | \|e,0⟩, N = 2 | g1, g2 | 5 × 50 000 | 25 min |
-| `rabi2_g_equals_omega_fock` | Rabi in the interaction picture, g1 = g2 = ω | \|e,0⟩, N = 4 | g1, g2 | 5 × 30 000 | 20 min |
 
 \* single process, measured on the development machine before dψ/dt was computed in one
 forward-mode pass; since then `atom_coherent` and `atom_squeeze` train about 4–5× faster
@@ -138,6 +137,7 @@ the physics they were trained with when evaluating them.
 configs/                     one YAML file per experiment
 configs/studies/             method studies (see docs/studies/)
 configs/reproduction/        reruns of the legacy experiments
+configs/rwa_sweep/           Rabi vs JC across g/ω, including g = ω (docs/studies/rwa_sweep.md)
 docs/studies/                study reports
 scripts/
     train.py                 train an experiment, once per seed
