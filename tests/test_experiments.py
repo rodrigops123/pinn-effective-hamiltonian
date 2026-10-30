@@ -183,7 +183,7 @@ def test_hard_initial_condition_survives_save_and_load(tmp_path):
 
 def test_fixed_couplings_survive_save_and_load(tmp_path):
     experiment = load_experiment(
-        next(p for p in CONFIGS if p.stem == "rabi2_g_equals_omega_fock")
+        next(p for p in CONFIGS if p.stem == "rwa_rabi_w5")
     ).with_overrides(epochs=2, seeds=[5])
     physics = replace(experiment.config.physics, fixed_couplings={"g2": 0.25})
     experiment = replace(experiment, config=replace(experiment.config, physics=physics))

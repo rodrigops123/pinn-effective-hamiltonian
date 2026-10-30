@@ -135,7 +135,7 @@ resolution of the method, not only a property of the data, and it depends on the
 training budget and on the network's ability to represent fast dynamics (the input
 scale).
 
-## The g = ω experiment (`configs/rabi2_g_equals_omega_fock.yaml`)
+## The g = ω experiment (`configs/rabi2_g_equals_omega_fock.yaml`, now removed)
 
 That config used a field dimension of 4. At g = ω, ⟨a†a⟩ reaches 4.3, and 4 levels
 change the observables by up to 3.3 against a 40-level field (18 levels: 7e-5). Its
@@ -161,7 +161,8 @@ detectable by loss.
    into the JC basin; longer training and lowest-loss selection among starts recover
    it. The switch location depends on the training budget and the input scale.
 4. The g = ω result of `rabi2_g_equals_omega_fock` does not hold at a converged field
-   dimension with its settings; the sweep's ω = 1 point replaces it.
+   dimension with its settings; the config is removed and the sweep's ω = 1 point
+   replaces it.
 
 ## Open questions
 

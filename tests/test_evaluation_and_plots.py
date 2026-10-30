@@ -96,7 +96,7 @@ def test_labels_and_dimensionless_time():
 
 @pytest.fixture(scope="module")
 def saved_run(tmp_path_factory):
-    experiment = load_experiment(CONFIGS / "rabi2_g_equals_omega_fock.yaml")
+    experiment = load_experiment(CONFIGS / "rwa_sweep" / "rwa_rabi_w5.yaml")
     data = replace(experiment.config.data, validation_fraction=0.25)
     experiment = replace(experiment, config=replace(experiment.config, data=data))
     out = run_experiment(
