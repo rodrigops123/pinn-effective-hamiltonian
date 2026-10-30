@@ -200,7 +200,9 @@ class TrainingConfig:
     the first ``window_start`` fraction of the training grid at epoch 0, widening
     linearly to the whole grid at epoch ``window_epochs``. ``ode_reduction`` combines
     the per-component ODE residuals: "sum" over the D components, or "mean", which
-    keeps the weight of the ODE loss relative to the others independent of D.
+    keeps the weight of the ODE loss relative to the others independent of D. With
+    ``freeze_couplings_epochs`` > 0 the learned couplings stay at their initial values
+    for that many epochs while the state trains, and are learned afterwards.
     """
 
     epochs: int
@@ -215,6 +217,7 @@ class TrainingConfig:
     window_start: float = 1.0
     window_epochs: int = 0
     ode_reduction: str = "sum"
+    freeze_couplings_epochs: int = 0
 
     def __post_init__(self):
         if isinstance(self.loss_weights, dict):
@@ -245,6 +248,11 @@ class TrainingConfig:
         if self.window_epochs < 0:
             raise ValueError(
                 f"window_epochs must be non-negative, got {self.window_epochs}"
+            )
+        if self.freeze_couplings_epochs < 0:
+            raise ValueError(
+                "freeze_couplings_epochs must be non-negative, "
+                f"got {self.freeze_couplings_epochs}"
             )
 
 
