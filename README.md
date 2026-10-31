@@ -93,10 +93,11 @@ check will treat them as finished runs. Per-config logs go to
 
 `scripts/aws.sh` runs batches on one EC2 machine, driven from your computer. You need
 the AWS CLI (`brew install awscli`, then `aws login` and
-`aws configure set region us-east-2`), an EC2 vCPU quota for the instance type in
-that region (default us-east-2 and `c7a.24xlarge`, 96 vCPU at about $5/h on demand),
-and the commit to run pushed
-to GitHub.
+`aws configure set region us-east-2`), an account on the paid plan with an EC2 vCPU
+quota for the instance type in that region (default us-east-2 and `c7a.24xlarge`,
+96 vCPU at about $5/h on demand), and the commit to run pushed to GitHub. The
+step-by-step guide, with account setup, expected output and checks, is
+[`docs/aws.md`](docs/aws.md).
 
 ```bash
 scripts/aws.sh setup                           # once: key pair from ~/.ssh/id_rsa.pub, SSH rule for your IP
