@@ -1,0 +1,27 @@
+# g2 start map at the switch: configs/final/final_rabi_w10.yaml with g2 started at 1.0
+# instead of the softplus draw, to locate the boundary between the starts that
+# reach the full model and those trapped at g2 = 0 (docs/studies/g2_start.md).
+experiment:
+  name: g2basin_rabi_w10_g2init100
+  description: Rabi data at g/ω = 0.1, learn g1 and g2 with the Rabi model, g2 started at 1.0, 150k epochs.
+  seeds: [100, 101, 102, 103, 104, 105, 106, 107, 108, 109]
+physics:
+  picture: rabi2_ip
+  params: {wc: 10, wa: 10, g1: 1.0, g2: 1}
+  init_state: fock
+  dims: {atom: 2, field: 5}
+  positivity: abs
+  coupling_draw: softplus
+  coupling_init: {g2: 1.0}
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 150000
+  learning_rate: 0.001
+  ode_reduction: mean
