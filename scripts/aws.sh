@@ -4,8 +4,12 @@
 #   scripts/aws.sh setup              once (and after your IP changes): key pair, SSH rule
 #   scripts/aws.sh up [ref]           start the machine; clone the repo at ref (default
 #                                     HEAD, must be pushed), uv sync, run the tests
-#   scripts/aws.sh run <configs...>   start scripts/run_configs.py in tmux on the machine;
-#                                     arguments as for run_configs.py
+#   scripts/aws.sh run [--stop-when-done] <configs...>
+#                                     start scripts/run_configs.py in tmux on the machine;
+#                                     arguments as for run_configs.py. --stop-when-done
+#                                     stops the machine (not terminates) when the batch
+#                                     ends: billing stops, the disk and results stay
+#   scripts/aws.sh start              start a stopped machine again (for fetch or down)
 #   scripts/aws.sh status             machine, uptime, batch state and the end of its log
 #   scripts/aws.sh log                follow the batch log (Ctrl-C stops only the tail)
 #   scripts/aws.sh ssh                shell on the machine, in the repository
@@ -62,14 +66,35 @@ instance_id() {
     --query 'Reservations[].Instances[].InstanceId'
 }
 
-# Sets ID and IP of the running machine, or exits.
-require_instance() {
+# Sets ID and STATE of the machine, or exits.
+require_machine() {
   ID=$(instance_id)
   [ -n "$ID" ] || die "no machine is up (scripts/aws.sh up)"
   case $ID in *[[:space:]]*) die "several machines tagged $TAG: $ID" ;; esac
+  STATE=$(awsr ec2 describe-instances --instance-ids "$ID" \
+    --query 'Reservations[0].Instances[0].State.Name')
+}
+
+# Sets ID and IP of the running machine, or exits.
+require_instance() {
+  require_machine
+  case $STATE in
+    running) ;;
+    stopped) die "machine $ID is stopped: scripts/aws.sh start, then fetch or down" ;;
+    *) die "machine $ID is $STATE: wait a minute and try again" ;;
+  esac
   IP=$(awsr ec2 describe-instances --instance-ids "$ID" \
     --query 'Reservations[0].Instances[0].PublicIpAddress')
-  [ "$IP" != None ] || die "machine $ID has no public IP (is it stopped?)"
+}
+
+wait_for_ssh() {
+  local tries=0
+  ssh-keygen -R "$IP" -f "$KNOWN_HOSTS" >/dev/null 2>&1 || true
+  until remote true 2>/dev/null; do
+    tries=$((tries + 1))
+    [ $tries -lt 40 ] || die "no SSH connection to $IP after 40 tries"
+    sleep 5
+  done
 }
 
 batch_running() { remote tmux has-session -t "$SESSION" 2>/dev/null; }
@@ -169,19 +194,14 @@ cmd_up() {
     --instance-type "$TYPE" --key-name "$KEY_NAME" --security-group-ids "$sg" \
     --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeSize=$DISK_GB,VolumeType=gp3,DeleteOnTermination=true}" \
     --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$TAG}]" \
+    --instance-initiated-shutdown-behavior stop \
     ${market[@]+"${market[@]}"} \
     --query 'Instances[0].InstanceId')
   trap 'echo "warning: machine $ID is still running and billing: scripts/aws.sh down" >&2' EXIT
   echo "launched $ID ($TYPE in $REGION), waiting for it to boot..."
   awsr ec2 wait instance-running --instance-ids "$ID"
   require_instance
-  ssh-keygen -R "$IP" -f "$KNOWN_HOSTS" >/dev/null 2>&1 || true
-  local tries=0
-  until remote true 2>/dev/null; do
-    tries=$((tries + 1))
-    [ $tries -lt 40 ] || die "no SSH connection to $IP after 40 tries"
-    sleep 5
-  done
+  wait_for_ssh
   bootstrap "$sha"
   trap - EXIT
   echo
@@ -198,17 +218,37 @@ cmd_sync() {
 }
 
 cmd_run() {
-  [ $# -gt 0 ] || die "usage: scripts/aws.sh run <configs or directories...> [run_configs.py options]"
+  local stop=0 args=() inner
+  for arg in "$@"; do
+    if [ "$arg" = --stop-when-done ]; then stop=1; else args+=("$arg"); fi
+  done
+  [ ${#args[@]} -gt 0 ] || die "usage: scripts/aws.sh run [--stop-when-done] <configs or directories...> [run_configs.py options]"
   require_instance
   ! batch_running || die "a batch is already running (scripts/aws.sh status)"
   scp -q "${SSH_OPTS[@]}" "$HERE/run_configs.py" "ubuntu@$IP:run_configs.py"
-  local inner
-  inner="cd $REMOTE_DIR && ~/.local/bin/uv run python ~/run_configs.py$(printf ' %q' "$@") 2>&1 | tee -a ~/$REMOTE_LOG"
+  inner="cd $REMOTE_DIR && ~/.local/bin/uv run python ~/run_configs.py$(printf ' %q' "${args[@]}") 2>&1 | tee -a ~/$REMOTE_LOG"
+  if [ $stop = 1 ]; then
+    inner="$inner; echo \"\$(date '+%F %T') STOPPING the machine\" >> ~/$REMOTE_LOG; sudo shutdown -h now"
+  fi
   remote "tmux new-session -d -s $SESSION $(printf %q "$inner")"
   echo "batch started at $(remote git -C "$REMOTE_DIR" log -1 --format=%h)"
   sleep 3
   remote tail -n 5 "$REMOTE_LOG"
   echo "follow it with scripts/aws.sh log; it keeps running if you disconnect"
+  if [ $stop = 1 ]; then
+    echo "the machine stops when the batch ends; then: scripts/aws.sh start, then down"
+  fi
+}
+
+cmd_start() {
+  require_machine
+  [ "$STATE" = stopped ] || die "machine $ID is $STATE, not stopped"
+  awsr ec2 start-instances --instance-ids "$ID" >/dev/null
+  echo "starting $ID (billing again until it stops or is terminated)..."
+  awsr ec2 wait instance-running --instance-ids "$ID"
+  require_instance
+  wait_for_ssh
+  echo "machine $ID is up at $IP; next: scripts/aws.sh down (fetches first)"
 }
 
 cmd_status() {
@@ -219,6 +259,11 @@ cmd_status() {
   fi
   awsr ec2 describe-instances --instance-ids "$ID" --query \
     'Reservations[].Instances[].[InstanceId,InstanceType,State.Name,PublicIpAddress,LaunchTime]'
+  require_machine
+  if [ "$STATE" != running ]; then
+    echo "machine is $STATE: not billing for compute, only for its disk"
+    return
+  fi
   require_instance
   remote "uptime -p; tmux has-session -t $SESSION 2>/dev/null && echo 'batch: running' || echo 'batch: not running'; tail -n ${LINES_SHOWN:-15} $REMOTE_LOG 2>/dev/null || true"
 }
@@ -283,10 +328,10 @@ cmd_down() {
 }
 
 command -v aws >/dev/null || die "the AWS CLI is not installed (brew install awscli)"
-[ $# -gt 0 ] || die "usage: scripts/aws.sh setup|up|run|status|log|ssh|sync|fetch|down (see the header)"
+[ $# -gt 0 ] || die "usage: scripts/aws.sh setup|up|run|start|status|log|ssh|sync|fetch|down (see the header)"
 cmd=$1
 shift
 case $cmd in
-  setup | up | run | status | log | ssh | sync | fetch | down) "cmd_$cmd" "$@" ;;
+  setup | up | run | start | status | log | ssh | sync | fetch | down) "cmd_$cmd" "$@" ;;
   *) die "unknown command: $cmd" ;;
 esac

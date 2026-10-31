@@ -101,19 +101,21 @@ to GitHub.
 ```bash
 scripts/aws.sh setup                           # once: key pair from ~/.ssh/id_rsa.pub, SSH rule for your IP
 scripts/aws.sh up experiments/final-sweep      # start, clone at that commit, uv sync, run the tests
-scripts/aws.sh run configs/final               # run_configs.py in tmux; survives disconnects
+scripts/aws.sh run --stop-when-done configs/final   # run_configs.py in tmux; survives disconnects
 scripts/aws.sh status                          # or: log (follow), ssh
-scripts/aws.sh fetch                           # copy saved_artifacts/ into the main checkout
+scripts/aws.sh start                           # after the batch stopped the machine
 scripts/aws.sh down                            # fetch, then terminate (asks first)
 ```
 
-The machine bills until `down`, which deletes its disk, so fetch before terminating.
-`down` does both and refuses while a batch runs. Settings are environment variables
-(`PINN_AWS_TYPE`, `PINN_AWS_REGION`, `PINN_AWS_SPOT=1` for a cheaper interruptible spot
-machine, which has its own quota and can be blocked by an organization policy; see the
-script header). Results from a different CPU
-are not bit-identical to the same seeds on another machine, so run a whole study on
-one platform.
+The machine bills until it stops or is terminated. With `--stop-when-done` it stops
+itself when the batch ends: compute billing ends, and the disk with the results stays
+(a few cents a day) until `start` and `down`. `down` copies `saved_artifacts/` into the
+main checkout (`fetch` does only that), then terminates, which deletes the disk; it
+refuses while a batch runs. Settings are environment variables (`PINN_AWS_TYPE`,
+`PINN_AWS_REGION`, `PINN_AWS_SPOT=1` for a cheaper interruptible spot machine, which has
+its own quota and can be blocked by an organization policy; see the script header).
+Results from a different CPU are not bit-identical to the same seeds on another
+machine, so run a whole study on one platform.
 
 ## Figures
 
