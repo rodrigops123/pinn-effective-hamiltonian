@@ -306,10 +306,11 @@ cmd_down() {
   [ -n "$ID" ] || die "no machine is up in $REGION"
   if [ $fetch = 1 ]; then
     require_instance
-    if batch_running && [ $force = 0 ]; then
+    # ssh would read the answer to the prompt below from stdin
+    if batch_running </dev/null && [ $force = 0 ]; then
       die "a batch is still running: wait for it, or use --force"
     fi
-    cmd_fetch
+    cmd_fetch </dev/null
   fi
   printf 'Terminate %s? Its disk and anything not fetched are deleted. Type yes: ' "$ID"
   read -r answer
