@@ -16,6 +16,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from pinn_jc.evaluation import Evaluation
 from pinn_jc.physics import coupling_label, get_picture
+from pinn_jc.sweep import SweepPoint
 
 STYLE = ("science", "retro", "grid")
 LEGEND = {
@@ -309,4 +310,60 @@ def plot_positivity_transforms(span: float = 10.0) -> Figure:
     for ax in (ax_softplus, ax_abs):
         ax.set_xlabel(r"$\theta$")
         ax.legend(**LEGEND)
+    return fig
+
+
+SWEEP_PANELS = {"rabi": r"Rabi data ($g_2 = g$)", "jc": r"JC data ($g_2 = 0$)"}
+
+
+def plot_g2_sweep(points: Sequence[SweepPoint]) -> Figure:
+    """Learned g2 against g/ω, one panel per data type (Rabi, JC).
+
+    Filled markers are the seeds' selected starts, open grey ones the starts they
+    beat; the dashed line is the true g2 and the shaded band the g2 the data cannot
+    tell from it (``pinn_jc.sweep.resolution_band``).
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(7, 2.8), sharey=True, dpi=300)
+    for ax, (data, title) in zip(axes, SWEEP_PANELS.items(), strict=True):
+        panel = sorted(
+            (p for p in points if p.data == data), key=lambda p: p.g_over_omega
+        )
+        if not panel:
+            ax.set_visible(False)
+            continue
+        x = np.array([p.g_over_omega for p in panel])
+        ax.fill_between(
+            x,
+            [p.band[0] for p in panel],
+            [p.band[1] for p in panel],
+            color="lightgray",
+            alpha=0.6,
+            linewidth=0,
+            label="unresolved by the data",
+        )
+        ax.plot(x, [p.g2_true for p in panel], "k--", linewidth=0.8, label="true")
+        for k, p in enumerate(panel):
+            ax.plot(
+                np.full(len(p.rejected), p.g_over_omega),
+                p.rejected,
+                "o",
+                markersize=3,
+                markerfacecolor="none",
+                markeredgecolor="gray",
+                label="rejected start" if k == 0 else None,
+            )
+            ax.plot(
+                np.full(len(p.selected), p.g_over_omega),
+                p.selected,
+                "o",
+                markersize=3,
+                color="C0",
+                alpha=0.7,
+                label="selected start" if k == 0 else None,
+            )
+        ax.set_xscale("log")
+        ax.set_xlabel(r"$g/\omega$")
+        ax.set_title(title, fontsize=8)
+    axes[0].set_ylabel(r"learned $g_2$")
+    axes[-1].legend(loc="upper right", **LEGEND)
     return fig
