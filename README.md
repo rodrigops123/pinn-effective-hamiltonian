@@ -74,6 +74,45 @@ recorded in `meta.json`. To change an experiment, edit its YAML (or copy it unde
 `name`), commit, and run it. A config can also hold out the end of the time grid
 (`data.validation_fraction`) to measure extrapolation.
 
+### Many configs at once
+
+```bash
+uv run python scripts/run_configs.py configs/final              # every config in the directory
+uv run python scripts/run_configs.py configs/final --cores 10   # leave the rest of the machine free
+```
+
+`run_configs.py` trains each config with one worker per seed and starts configs,
+longest first, while enough of `--cores` (default: all) are free. A config that already
+has a finished run (one with `summary.json`) of the current commit is skipped, so an
+interrupted batch resumes with the same command. `--epochs`, `--seeds` and `--output`
+pass through to `train.py`; use a separate `--output` for quick checks, or the skip
+check will treat them as finished runs. Per-config logs go to
+`saved_artifacts/run_logs/`.
+
+## Running on AWS
+
+`scripts/aws.sh` runs batches on one EC2 machine, driven from your computer. You need
+the AWS CLI (`brew install awscli`, then `aws login` and
+`aws configure set region us-east-1`), an EC2 vCPU quota for the instance type
+(default `c7a.24xlarge`, 96 vCPU at about $5/h on demand), and the commit to run pushed
+to GitHub.
+
+```bash
+scripts/aws.sh setup                           # once: key pair from ~/.ssh/id_rsa.pub, SSH rule for your IP
+scripts/aws.sh up experiments/final-sweep      # start, clone at that commit, uv sync, run the tests
+scripts/aws.sh run configs/final               # run_configs.py in tmux; survives disconnects
+scripts/aws.sh status                          # or: log (follow), ssh
+scripts/aws.sh fetch                           # copy saved_artifacts/ into the main checkout
+scripts/aws.sh down                            # fetch, then terminate (asks first)
+```
+
+The machine bills until `down`, which deletes its disk, so fetch before terminating.
+`down` does both and refuses while a batch runs. Settings are environment variables
+(`PINN_AWS_TYPE`, `PINN_AWS_REGION`, `PINN_AWS_SPOT=1` for a cheaper interruptible spot
+machine, which has its own quota; see the script header). Results from a different CPU
+are not bit-identical to the same seeds on another machine, so run a whole study on
+one platform.
+
 ## Figures
 
 ```bash
@@ -152,6 +191,8 @@ configs/rwa_sweep/           Rabi vs JC across g/ω, including g = ω (docs/stud
 docs/studies/                study reports (index in docs/studies/README.md)
 scripts/
     train.py                 train an experiment, once per seed
+    run_configs.py           train many configs at once, skipping finished ones
+    aws.sh                   run batches on an AWS EC2 machine
     make_figures.py          render the figures of saved runs
     migrate_pickles.py       convert result pickles of earlier code versions
     summarize_runs.py        per-seed couplings, losses and fidelity (the study tables)
