@@ -93,8 +93,9 @@ check will treat them as finished runs. Per-config logs go to
 
 `scripts/aws.sh` runs batches on one EC2 machine, driven from your computer. You need
 the AWS CLI (`brew install awscli`, then `aws login` and
-`aws configure set region us-east-1`), an EC2 vCPU quota for the instance type
-(default `c7a.24xlarge`, 96 vCPU at about $5/h on demand), and the commit to run pushed
+`aws configure set region us-east-2`), an EC2 vCPU quota for the instance type in
+that region (default us-east-2 and `c7a.24xlarge`, 96 vCPU at about $5/h on demand),
+and the commit to run pushed
 to GitHub.
 
 ```bash
@@ -109,7 +110,8 @@ scripts/aws.sh down                            # fetch, then terminate (asks fir
 The machine bills until `down`, which deletes its disk, so fetch before terminating.
 `down` does both and refuses while a batch runs. Settings are environment variables
 (`PINN_AWS_TYPE`, `PINN_AWS_REGION`, `PINN_AWS_SPOT=1` for a cheaper interruptible spot
-machine, which has its own quota; see the script header). Results from a different CPU
+machine, which has its own quota and can be blocked by an organization policy; see the
+script header). Results from a different CPU
 are not bit-identical to the same seeds on another machine, so run a whole study on
 one platform.
 

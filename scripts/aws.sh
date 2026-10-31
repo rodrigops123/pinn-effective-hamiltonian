@@ -15,7 +15,7 @@
 #                                     fetch, then terminate the machine (deletes its disk)
 #
 # Settings, as environment variables:
-#   PINN_AWS_REGION   region                          (us-east-1)
+#   PINN_AWS_REGION   region                          (us-east-2)
 #   PINN_AWS_TYPE     instance type                   (c7a.24xlarge: 96 vCPU, x86)
 #   PINN_AWS_SPOT     1 for a spot instance: cheaper, may be stopped by AWS  (0)
 #   PINN_AWS_KEY      SSH private key; its .pub is imported   (~/.ssh/id_rsa)
@@ -27,7 +27,7 @@
 
 set -euo pipefail
 
-REGION=${PINN_AWS_REGION:-us-east-1}
+REGION=${PINN_AWS_REGION:-us-east-2}
 TYPE=${PINN_AWS_TYPE:-c7a.24xlarge}
 SPOT=${PINN_AWS_SPOT:-0}
 KEY=${PINN_AWS_KEY:-$HOME/.ssh/id_rsa}
