@@ -1,0 +1,26 @@
+# Final sweep (Phase E, docs/studies/final_sweep.md): configs/rwa_sweep/rwa_jc_w15.yaml
+# with 10 seeds, 150k epochs and g2 started near 1 from the softplus draw (the first start).
+# Per seed, the start with the lower total loss is kept (docs/studies/g2_start.md).
+experiment:
+  name: final_jc_w15
+  description: JC data at g/ω ≈ 0.067, learn g1 and g2 with the Rabi model, g2 started near 1, 150k epochs.
+  seeds: [100, 101, 102, 103, 104, 105, 106, 107, 108, 109]
+physics:
+  picture: rabi2_ip
+  params: {wc: 15, wa: 15, g1: 1.0, g2: 0}
+  init_state: fock
+  dims: {atom: 2, field: 4}
+  positivity: abs
+  coupling_draw: softplus
+data:
+  tfinal: 6.283185307179586  # 2π
+  n_time_steps: 500
+  n_data_points: 500
+model:
+  hidden_units: [100, 100, 100]
+  activation: sine
+  input_scale: 10.0
+training:
+  epochs: 150000
+  learning_rate: 0.001
+  ode_reduction: mean

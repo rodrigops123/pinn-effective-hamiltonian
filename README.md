@@ -124,7 +124,14 @@ machine, so run a whole study on one platform.
 uv run python scripts/make_figures.py saved_artifacts/runs/atom_fock/<timestamp>_<commit>
 ```
 
-writes, for every seed, `seed_<s>/figures/{expectations,fidelity,state_components,losses,couplings}.{pdf,png}`.
+writes, for every seed, `seed_<s>/figures/{expectations,fidelity,populations,losses,couplings}.{pdf,png}`.
+The fidelity figure shows the infidelity 1 − F on a log scale; the populations figure
+shows |⟨s,n|ψ(t)⟩|² of every occupied basis state, which, unlike the components, does
+not depend on the global phase or the frame. `--state-components` adds the heat map
+of the real and imaginary parts of every component, as a diagnostic.
+For an experiment directory it also writes `figures/couplings_all_seeds.{pdf,png}`
+next to the seeds: the coupling trajectories of every seed, with the seed of lowest
+final total loss in bold.
 Predictions are always compared with the exact solution **in the frame the model was
 trained in**. `apps/figures.ipynb` does the same interactively. In Python:
 
@@ -139,6 +146,19 @@ plots.use_style()  # SciencePlots + LaTeX
 fig = plots.plot_expectations(evaluation)
 plots.save_figure(fig, "figures/atom_fock_expectations")
 ```
+
+The figure of the final sweep (`docs/studies/final_sweep.md`) takes every
+`final_{rabi,jc}_w<ω>` experiment with its `_init005` partner (g2 started at 0.05),
+keeps per seed the start with the lower total loss, and shades the g2 the data cannot
+resolve within the fit floor:
+
+```bash
+uv run python scripts/make_sweep_figure.py --prefix final --floor 2e-3
+```
+
+It writes `saved_artifacts/figures/final_g2_sweep.{pdf,png}` and the per-seed table
+`final_sweep.json`, and refuses outputs of a dirty tree or starts whose settings differ
+in more than the seed and `coupling_init`.
 
 ## Conventions
 
@@ -193,6 +213,7 @@ configs/                     one YAML file per experiment
 configs/studies/             method studies (see docs/studies/)
 configs/reproduction/        reruns of the legacy experiments
 configs/rwa_sweep/           Rabi vs JC across g/ω, including g = ω (docs/studies/rwa_sweep.md)
+configs/final/               the sweep with 10 seeds and two g2 starts (docs/studies/final_sweep.md)
 docs/studies/                study reports (index in docs/studies/README.md)
 scripts/
     train.py                 train an experiment, once per seed
@@ -201,6 +222,7 @@ scripts/
     make_figures.py          render the figures of saved runs
     migrate_pickles.py       convert result pickles of earlier code versions
     summarize_runs.py        per-seed couplings, losses and fidelity (the study tables)
+    make_sweep_figure.py     learned g2 against g/ω, one start per seed by lowest loss
     rwa_sweep_preparation.py field dimension, Rabi–JC difference and g2 resolution per ω
     g2_bias_diagnostics.py   loss landscape and supervised-fit diagnostics of g2
     g2_symmetry_check.py     the data are even in g2
@@ -211,6 +233,7 @@ src/pinn_jc/
     training/                experiment config, losses, training loop, history
     experiments.py           experiment files and the multi-seed runner
     evaluation.py            predictions vs exact solution, in the training frame
+    sweep.py                 two-start selection and g2 resolution band of the sweep
     visualization/plots.py   figures
     io/runs.py, io/legacy.py run directories; formats of earlier code versions
     reproducibility.py       seeding
