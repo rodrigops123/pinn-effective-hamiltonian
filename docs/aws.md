@@ -137,10 +137,10 @@ expected, and do not affect results:
 - `tests/test_golden.py::test_train_with_learned_couplings[...]`: golden files were
   generated on Apple Silicon; float32 training differs in the last digits (about 1e-6)
   on x86, slightly differently on Intel and AMD.
-- `tests/test_experiments.py::test_parallel_seeds_match_sequential_training`: on x86,
-  results depend on the number of torch threads (about 1e-8 relative); the test trains
-  one side on all threads. `run_configs.py` always trains one thread per seed, so runs
-  on the machine are consistent. The test passes with `OMP_NUM_THREADS=1`.
+
+On x86, torch results also depend on the number of threads (about 1e-8 relative).
+`run_configs.py` always trains one thread per seed, so runs on the machine are
+consistent with each other, but compare seeds only within one platform.
 
 Any other failure: stop and investigate before running.
 
