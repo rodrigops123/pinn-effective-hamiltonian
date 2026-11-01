@@ -103,3 +103,17 @@ def test_sweep_figure_renders():
     assert rabi.get_xscale() == "log"
     assert len(rabi.collections) == 1  # the band
     plt.close(fig)
+
+
+def test_basin_figure_counts_the_full_model_per_start():
+    panels = {
+        "a": {0.05: [0.0, 0.0, 0.0], 1.0: [0.97, 0.0, 0.98]},
+        "b": {0.05: [0.0, 0.0], 1.5: [0.0, 0.0]},
+    }
+    fig = plots.plot_g2_basins(panels)
+
+    left, right = fig.axes
+    assert [t.get_text() for t in left.texts] == ["0/3", "2/3"]
+    assert [t.get_text() for t in right.texts] == ["0/2", "0/2"]
+    assert [x.get_text() for x in left.get_xticklabels()] == ["0.05", "1"]
+    plt.close(fig)

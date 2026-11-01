@@ -545,3 +545,53 @@ def plot_g2_sweep(points: Sequence[SweepPoint]) -> Figure:
     axes[0].set_ylabel(r"learned $g_2$")
     axes[-1].legend(loc="upper right", **LEGEND)
     return fig
+
+
+def plot_g2_basins(
+    panels: Mapping[str, Mapping[float, Sequence[float]]],
+    g2_true: float = 1.0,
+    full_above: float = 0.5,
+) -> Figure:
+    """Learned g2 against its initial value, one panel per data set.
+
+    ``panels`` maps a panel title to {initial g2: learned g2 of every seed}. The
+    initial values sit at equal spacing (labelled with their values) and seeds are
+    spread slightly in x, so that equal outcomes stay countable; the number of seeds
+    ending above ``full_above`` (the full model) is written over each start. The
+    dashed line is the true g2.
+    """
+    fig, axes = plt.subplots(
+        1, len(panels), figsize=(3.5 * len(panels), 2.8), sharey=True, dpi=300
+    )
+    axes = np.atleast_1d(axes)
+    for ax, (title, starts) in zip(axes, panels.items(), strict=True):
+        inits = sorted(starts)
+        for k, init in enumerate(inits):
+            learned = np.asarray(starts[init], dtype=float)
+            ax.plot(
+                k + np.linspace(-0.2, 0.2, len(learned)),
+                learned,
+                "o",
+                markersize=2.5,
+                color="C0",
+                alpha=0.7,
+            )
+            full = int((learned > full_above).sum())
+            ax.annotate(
+                f"{full}/{len(learned)}",
+                (k, 1.0),
+                xycoords=("data", "axes fraction"),
+                xytext=(0, 2),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                fontsize=6,
+            )
+        ax.axhline(g2_true, color="k", linestyle="--", linewidth=0.8)
+        ax.set_xticks(range(len(inits)), [f"{init:g}" for init in inits])
+        ax.set_xlim(-0.6, len(inits) - 0.4)
+        ax.tick_params(axis="x", which="minor", bottom=False, top=False)
+        ax.set_xlabel(r"initial $g_2$")
+        ax.set_title(title, fontsize=8, pad=12)
+    axes[0].set_ylabel(r"learned $g_2$")
+    return fig

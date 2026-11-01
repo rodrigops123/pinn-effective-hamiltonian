@@ -1,15 +1,18 @@
 """Figure of the final sweep: learned g2 against g/ω, Rabi and JC data.
 
-For every ``<prefix>_{rabi,jc}_w<ω>`` experiment with a ``<...>_init005`` partner (the
-second g2 start, docs/studies/g2_start.md), each seed keeps the start with the lower
+For every ``<prefix>_{rabi,jc}_w<ω><suffix>`` experiment with a
+``<prefix>_{rabi,jc}_w<ω>_init005<suffix>`` partner (the second g2 start,
+docs/studies/g2_start.md), each seed keeps the start with the lower
 total loss. The shaded band is the range of g2 whose exact data stay within the fit
 floor of the training data (``pinn_jc.sweep.resolution_band``). The selected
 couplings and losses of every seed go to ``<prefix>_sweep.json`` next to the
-figure.
+figure. ``--suffix`` selects variants such as the extra noise draws
+(``final_noise_rabi_w10_nseed1``); outputs are named ``<prefix><suffix>_...``.
 
 Usage:
     uv run python scripts/make_sweep_figure.py
     uv run python scripts/make_sweep_figure.py --prefix final --floor 2e-3 --no-usetex
+    uv run python scripts/make_sweep_figure.py --prefix final_noise --suffix _nseed1
 
 Each experiment directory stands for its latest output (as in summarize_runs.py).
 """
@@ -54,16 +57,23 @@ def check_clean(output: Path) -> str:
     return git["commit"]
 
 
-def sweep_experiments(runs: Path, prefix: str) -> list[tuple[str, Path, Path]]:
+def sweep_experiments(
+    runs: Path, prefix: str, suffix: str = ""
+) -> list[tuple[str, Path, Path]]:
     """Return (data, first start, second start) for every experiment pair."""
-    pattern = re.compile(rf"{re.escape(prefix)}_(rabi|jc)_w[\d.]+")
+    pattern = re.compile(rf"({re.escape(prefix)}_(rabi|jc)_w[\d.]+){re.escape(suffix)}")
     pairs = []
     for first in sorted(runs.iterdir()):
-        second = runs / (first.name + SECOND_START)
-        if pattern.fullmatch(first.name) and second.is_dir():
-            pairs.append((pattern.fullmatch(first.name).group(1), first, second))
+        match = pattern.fullmatch(first.name)
+        if match is None:
+            continue
+        second = runs / (match.group(1) + SECOND_START + suffix)
+        if second.is_dir():
+            pairs.append((match.group(2), first, second))
     if not pairs:
-        raise SystemExit(f"no {prefix}_*_w* experiments with a {SECOND_START} partner")
+        raise SystemExit(
+            f"no {prefix}_*_w*{suffix} experiments with a {SECOND_START} partner"
+        )
     return pairs
 
 
@@ -71,6 +81,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--runs", type=Path, default=Path("saved_artifacts/runs"))
     parser.add_argument("--prefix", default="final")
+    parser.add_argument("--suffix", default="", help="e.g. _nseed1")
     parser.add_argument(
         "--floor", type=float, default=2e-3, help="fit floor of the data loss"
     )
@@ -85,7 +96,7 @@ def main():
     warnings.filterwarnings("ignore")
     plots.use_style(usetex=not args.no_usetex)
     points, table = [], {}
-    for data, first, second in sweep_experiments(args.runs, args.prefix):
+    for data, first, second in sweep_experiments(args.runs, args.prefix, args.suffix):
         starts = {}
         commits = set()
         for name, experiment in (("g2 near 1", first), ("g2 = 0.05", second)):
@@ -137,9 +148,13 @@ def main():
         )
 
     fig = plots.plot_g2_sweep(points)
-    saved = plots.save_figure(fig, args.out / f"{args.prefix}_g2_sweep", args.formats)
+    saved = plots.save_figure(
+        fig, args.out / f"{args.prefix}{args.suffix}_g2_sweep", args.formats
+    )
     plt.close(fig)
-    (args.out / f"{args.prefix}_sweep.json").write_text(json.dumps(table, indent=1))
+    (args.out / f"{args.prefix}{args.suffix}_sweep.json").write_text(
+        json.dumps(table, indent=1)
+    )
     print("\n".join(str(path) for path in saved))
 
 
