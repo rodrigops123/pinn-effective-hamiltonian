@@ -104,10 +104,19 @@ def test_seeded_runs_are_reproducible(tmp_path):
 
 
 def test_parallel_seeds_match_sequential_training(tmp_path):
-    """Workers train each seed on one thread; the results are bit-identical."""
-    sequential = run_experiment(
-        _tiny_experiment(), tmp_path / "a", allow_dirty=True, progress_bar=False
-    )
+    """Workers train each seed on one thread; the results are bit-identical.
+
+    The sequential side also trains on one thread: torch results depend on the
+    thread count on some platforms (x86), so this compares like with like.
+    """
+    threads = torch.get_num_threads()
+    torch.set_num_threads(1)
+    try:
+        sequential = run_experiment(
+            _tiny_experiment(), tmp_path / "a", allow_dirty=True, progress_bar=False
+        )
+    finally:
+        torch.set_num_threads(threads)
     parallel = run_experiment(
         _tiny_experiment(),
         tmp_path / "b",

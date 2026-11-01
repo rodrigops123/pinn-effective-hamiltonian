@@ -12,7 +12,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize, TwoSlopeNorm
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.ticker import FuncFormatter
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from scipy.ndimage import median_filter
 
 from pinn_jc.evaluation import Evaluation
 from pinn_jc.physics import coupling_label, get_picture
@@ -32,6 +35,9 @@ LOSS_LABELS = {
     "loss_data": r"$L_\mathrm{data}$",
     "loss_ode": r"$L_\mathrm{eq}$",
 }
+EXACT = {"color": "0.75", "linewidth": 2.5}  # exact solution, drawn under predictions
+# true coupling values: dark and dotted, unlike the dashed grey grid
+TRUE_VALUE = {"color": "0.15", "linestyle": ":", "linewidth": 1.0, "zorder": 1}
 
 
 def use_style(usetex: bool = True) -> None:
@@ -67,6 +73,18 @@ def _history_arrays(history) -> dict[str, np.ndarray]:
     return arrays
 
 
+def _epochs_in_thousands(ax) -> None:
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1000:g}"))
+    ax.set_xlabel(r"Epoch ($\times 10^3$)")
+
+
+def _smooth(values: np.ndarray, window: int) -> np.ndarray:
+    """Centred running median over ``window`` points (edges repeat the end values)."""
+    if window <= 1:
+        return values
+    return median_filter(values, size=2 * (window // 2) + 1, mode="nearest")
+
+
 def _mark_validation(ax, evaluation: Evaluation) -> None:
     if evaluation.train_end is not None:
         scale = evaluation.time_unit[0][-1] / evaluation.time[-1]
@@ -76,7 +94,7 @@ def _mark_validation(ax, evaluation: Evaluation) -> None:
 
 
 def plot_expectations(evaluation: Evaluation) -> Figure:
-    """Predicted (solid) and exact (dashed) ⟨a†a⟩, ⟨σ+σ-⟩, and their absolute error.
+    """Predicted ⟨a†a⟩, ⟨σ+σ-⟩ over the exact ones (thick grey), and the absolute error.
 
     A dotted line marks the end of the training window, if one was held out.
     """
@@ -88,36 +106,90 @@ def plot_expectations(evaluation: Evaluation) -> Figure:
     for k, label in enumerate(evaluation.observable_labels):
         predicted = evaluation.predicted_expectations[:, k]
         exact = evaluation.exact_expectations[:, k]
-        ax.plot(time, predicted, color=colors[k], label=rf"${label}_\mathrm{{NN}}$")
-        ax.plot(
-            time,
-            exact,
-            color=colors[k],
-            linestyle="--",
-            label=rf"${label}_\mathrm{{exact}}$",
-        )
-        ax_error.plot(
-            time, np.abs(predicted - exact), color=colors[k], label=rf"${label}$"
-        )
+        ax.plot(time, exact, **EXACT)
+        ax.plot(time, predicted, color=colors[k], label=rf"${label}$")
+        ax_error.plot(time, np.abs(predicted - exact), color=colors[k])
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(Line2D([], [], **EXACT))
+    labels.append("exact")
+    ax.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=len(labels),
+        borderaxespad=0.0,
+        **LEGEND,
+    )
     for axis in (ax, ax_error):
         _mark_validation(axis, evaluation)
-        axis.legend(
-            loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0, **LEGEND
-        )
-    ax.set_ylabel("Populations")
-    ax_error.set_ylabel("Error")
+    ax.set_ylabel("Expectation value")
+    ax_error.set_ylabel("Abs. error")
+    ax_error.ticklabel_format(axis="y", style="sci", scilimits=(-2, 2))
     ax_error.set_xlabel(time_label)
     return fig
 
 
 def plot_fidelity(evaluation: Evaluation) -> Figure:
-    """Fidelity between the predicted and the exact state over time."""
+    """Infidelity 1 - F between the predicted and the exact state (log scale)."""
     time, time_label = evaluation.time_unit
     fig, ax = plt.subplots(dpi=300)
-    ax.plot(time, evaluation.fidelity)
+    infidelity = np.clip(1.0 - evaluation.fidelity, 1e-16, None)
+    ax.plot(time, infidelity)
     _mark_validation(ax, evaluation)
+    ax.set_yscale("log")
+    # whole decades, so at least two labelled ticks
+    low, high = np.log10(infidelity.min()), np.log10(infidelity.max())
+    ax.set_ylim(10 ** np.floor(low), 10 ** max(np.ceil(high), np.floor(low) + 1))
     ax.set_xlabel(time_label)
-    ax.set_ylabel(r"$\mathcal{F}(|\tilde\psi(t)\rangle, |\psi(t)\rangle)$")
+    ax.set_ylabel(r"$1 - \mathcal{F}(|\tilde\psi(t)\rangle, |\psi(t)\rangle)$")
+    return fig
+
+
+def plot_populations(evaluation: Evaluation, threshold: float = 1e-4) -> Figure:
+    """Basis-state populations |⟨s,n|ψ(t)⟩|², predicted over exact (log scale).
+
+    Populations do not depend on the global phase nor on the frame (the pictures
+    differ by diagonal phases), unlike the components themselves. Only the states
+    whose exact population exceeds ``threshold`` at some time are shown. The axis
+    starts a decade below ``threshold`` (at 1e-5 if ``threshold`` <= 0); predictions
+    below it are drawn just above the bottom edge, so a state the model leaves empty
+    stays visible.
+    """
+    floor = threshold / 10 if threshold > 0 else 1e-5
+    time, time_label = evaluation.time_unit
+    predicted = np.abs(evaluation.predicted_state) ** 2
+    predicted /= predicted.sum(axis=1, keepdims=True)
+    exact = np.abs(evaluation.exact_state) ** 2
+    shown = np.flatnonzero(exact.max(axis=0) > threshold)
+    fig, ax = plt.subplots(dpi=300)
+    for i in shown:
+        ax.plot(time, exact[:, i], **EXACT)
+    colors = [c for c in plt.get_cmap("tab10").colors if len(set(c)) > 1]  # no grey
+    for k, i in enumerate(shown):
+        ax.plot(
+            time,
+            np.clip(predicted[:, i], 1.5 * floor, None),
+            color=colors[k % len(colors)],
+            label=evaluation.basis_labels[i],
+        )
+    _mark_validation(ax, evaluation)
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(Line2D([], [], **EXACT))
+    labels.append("exact")
+    ax.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=len(labels),
+        borderaxespad=0.0,
+        **LEGEND,
+    )
+    ax.set_yscale("log")
+    ax.set_ylim(floor, 1.5)
+    ax.set_xlabel(time_label)
+    ax.set_ylabel(r"Population $|\langle s,n|\psi(t)\rangle|^2$")
     return fig
 
 
@@ -145,7 +217,10 @@ def _strips(
 
 
 def plot_state_components(evaluation: Evaluation) -> Figure:
-    """Real and imaginary parts of every basis component over time.
+    """Real and imaginary parts of every basis component over time (diagnostic).
+
+    Components carry the global phase, so their error can be large while the
+    fidelity is close to 1; ``plot_populations`` is the phase-free alternative.
 
     Columns: network prediction, exact solution, absolute error; rows: real, imaginary.
     The prediction and the exact solution share one colour scale, the errors another.
@@ -163,8 +238,10 @@ def plot_state_components(evaluation: Evaluation) -> Figure:
     error_norm = Normalize(
         vmin=0.0, vmax=max(panels[(0, 2)].max(), panels[(1, 2)].max())
     )
-    cmap = plt.get_cmap("magma").copy()
+    cmap = plt.get_cmap("RdBu_r").copy()
     cmap.set_bad("white")
+    error_cmap = plt.get_cmap("magma").copy()
+    error_cmap.set_bad("white")
 
     major_breaks = (
         [evaluation.physics.dims["field"]]
@@ -178,7 +255,7 @@ def plot_state_components(evaluation: Evaluation) -> Figure:
         image, centres, breaks = _strips(matrix, major_breaks)
         axes[row, col].imshow(
             image,
-            cmap=cmap,
+            cmap=error_cmap if col == 2 else cmap,
             norm=error_norm if col == 2 else amplitude_norm,
             extent=[0, image.shape[1], time[0], time[-1]],
             aspect="auto",
@@ -212,7 +289,7 @@ def plot_state_components(evaluation: Evaluation) -> Figure:
         label="Component value",
     )
     fig.colorbar(
-        plt.cm.ScalarMappable(norm=error_norm, cmap=cmap),
+        plt.cm.ScalarMappable(norm=error_norm, cmap=error_cmap),
         ax=axes[:, 2].tolist(),
         shrink=0.9,
         label="Absolute error",
@@ -220,16 +297,30 @@ def plot_state_components(evaluation: Evaluation) -> Figure:
     return fig
 
 
-def plot_losses(history, every: int = 1) -> Figure:
-    """Loss terms per epoch (log scale), plotting one epoch in ``every``."""
+def plot_losses(history, every: int = 1, smooth: int | None = None) -> Figure:
+    """Loss terms per epoch (log scale): raw (faint) and a running median (solid).
+
+    ``smooth`` is the median window in epochs (default: 1 % of the epochs);
+    one epoch in ``every`` is plotted.
+    """
     arrays = _history_arrays(history)
     fig, ax = plt.subplots(dpi=300)
     for key, label in LOSS_LABELS.items():
         if key in arrays and arrays[key].size:
-            epochs = np.arange(1, arrays[key].size + 1)
-            ax.plot(epochs[::every], arrays[key][::every], label=label)
+            values = arrays[key]
+            window = smooth if smooth is not None else values.size // 100
+            epochs = np.arange(1, values.size + 1)
+            (line,) = ax.plot(
+                epochs[::every], values[::every], alpha=0.2, linewidth=0.5
+            )
+            ax.plot(
+                epochs[::every],
+                _smooth(values, window)[::every],
+                color=line.get_color(),
+                label=label,
+            )
     ax.set_yscale("log")
-    ax.set_xlabel("Epoch")
+    _epochs_in_thousands(ax)
     ax.set_ylabel("Loss")
     ax.legend(loc="upper right", **LEGEND)
     return fig
@@ -242,7 +333,7 @@ def plot_couplings(
     every: int = 1,
     inset_last: int | None = 1000,
 ) -> Figure:
-    """Learned couplings per epoch, with their true values (dashed, same colour).
+    """Learned couplings per epoch, with their true values (dark dotted).
 
     ``true_values`` maps coupling names to values (e.g. the config's ``params``);
     the inset zooms on the last ``inset_last`` epochs, without subsampling.
@@ -263,20 +354,22 @@ def plot_couplings(
         for k, name in enumerate(names)
     ]
 
+    targets = sorted(
+        {float(true_values[n]) for n in names if true_values and n in true_values}
+    )
+
     def true_lines(axis):
-        for line, name in zip(lines, names, strict=True):
-            if true_values is not None and name in true_values:
-                axis.axhline(
-                    true_values[name],
-                    color=line.get_color(),
-                    linestyle="--",
-                    linewidth=1,
-                )
+        for value in targets:
+            axis.axhline(value, **TRUE_VALUE)
 
     true_lines(ax)
-    ax.set_xlabel("Epoch")
+    _epochs_in_thousands(ax)
     ax.set_ylabel("Coupling")
-    ax.legend(loc="lower right", **LEGEND)
+    handles, labels = ax.get_legend_handles_labels()
+    if targets:
+        handles.append(Line2D([], [], **TRUE_VALUE))
+        labels.append("true value")
+    ax.legend(handles, labels, loc="lower right", **LEGEND)
 
     if inset_last and len(couplings) > inset_last:
         inset = inset_axes(
@@ -293,7 +386,92 @@ def plot_couplings(
             )
         true_lines(inset)
         inset.tick_params(labelsize=6)
-        inset.set_title(f"last {inset_last} epochs", fontsize=6)
+        inset.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x / 1000:g}"))
+        inset.ticklabel_format(axis="y", useOffset=False)
+        inset.text(
+            0.5,
+            1.04,
+            f"last {inset_last} epochs",
+            transform=inset.transAxes,
+            ha="center",
+            va="bottom",
+            fontsize=6,
+            bbox={"facecolor": "white", "edgecolor": "none", "pad": 1},
+        )
+    return fig
+
+
+def plot_coupling_trajectories(
+    histories: Mapping[int, object],
+    picture: str,
+    true_values: Mapping[str, float] | None = None,
+    selected: int | None = None,
+    every: int = 1,
+) -> Figure:
+    """Learned couplings per epoch for every seed of an experiment, one panel each.
+
+    ``histories`` maps seeds to training histories (any format ``plot_couplings``
+    accepts). The ``selected`` seed (e.g. the one with the lowest final loss) is
+    drawn bold and the others faint, so seeds that end in different minima stay
+    visible as separate lines rather than being averaged into a band.
+    """
+    names = get_picture(picture).couplings
+    couplings = {}
+    for seed, history in histories.items():
+        values = _history_arrays(history)["couplings"]
+        if values.ndim != 2 or values.shape[1] != len(names):
+            raise ValueError(
+                f"seed {seed} has couplings of shape {values.shape}; picture "
+                f"{picture!r} has {len(names)}: {names}"
+            )
+        couplings[seed] = values
+    if selected is not None and selected not in couplings:
+        raise ValueError(f"selected seed {selected} is not among {list(couplings)}")
+
+    fig, axes = plt.subplots(
+        len(names),
+        1,
+        sharex=True,
+        squeeze=False,
+        figsize=(3.5, 1.4 * len(names) + 0.6),
+        dpi=300,
+    )
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    for k, (ax, name) in enumerate(zip(axes[:, 0], names, strict=True)):
+        color = colors[k % len(colors)]
+        for seed, values in couplings.items():
+            epochs = np.arange(1, len(values) + 1)[::every]
+            bold = seed == selected
+            ax.plot(
+                epochs,
+                values[::every, k],
+                color=color,
+                alpha=1.0 if bold else 0.35,
+                linewidth=1.2 if bold else 0.6,
+                zorder=3 if bold else 2,
+            )
+        if true_values is not None and name in true_values:
+            ax.axhline(float(true_values[name]), **TRUE_VALUE)
+        ax.set_ylabel(coupling_label(picture, name), fontsize=7)
+
+    handles = [
+        Line2D([], [], color="0.2", linewidth=0.6, alpha=0.35),
+        Line2D([], [], **TRUE_VALUE),
+    ]
+    labels = [f"other seeds ({len(couplings) - (selected is not None)})", "true value"]
+    if selected is not None:
+        handles.insert(0, Line2D([], [], color="0.2", linewidth=1.2))
+        labels.insert(0, f"seed {selected}")
+    axes[0, 0].legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.04),
+        ncol=len(labels),
+        borderaxespad=0.0,
+        **LEGEND,
+    )
+    _epochs_in_thousands(axes[-1, 0])
     return fig
 
 

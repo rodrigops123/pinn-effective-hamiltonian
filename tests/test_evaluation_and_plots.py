@@ -126,6 +126,7 @@ def test_every_figure_renders(saved_run, tmp_path):
         "expectations": plots.plot_expectations(evaluation),
         "fidelity": plots.plot_fidelity(evaluation),
         "states": plots.plot_state_components(evaluation),
+        "populations": plots.plot_populations(evaluation, threshold=-1.0),
         "losses": plots.plot_losses(saved_run.history),
         "couplings": plots.plot_couplings(
             saved_run.history, picture, saved_run.config.physics.params, inset_last=2
@@ -135,6 +136,10 @@ def test_every_figure_renders(saved_run, tmp_path):
 
     assert all(isinstance(fig, Figure) for fig in figures.values())
     assert len(figures["states"].axes) == 8  # 6 panels + 2 colour bars
+    n_basis = evaluation.predicted_state.shape[1]
+    lines = figures["populations"].axes[0].get_lines()
+    labelled = [line for line in lines if not line.get_label().startswith("_")]
+    assert len(labelled) == n_basis  # one prediction per state, exact unlabelled
     saved = plots.save_figure(
         figures["fidelity"], tmp_path / "sub" / "fidelity", ["png", "pdf"]
     )
@@ -158,6 +163,23 @@ def test_history_plots_accept_every_history_format():
         figure = plots.plot_couplings(source, "atom", {"g1": 1.0})
         labels = [line.get_label() for line in figure.axes[0].get_lines()]
         assert coupling_label("atom", "g1") in labels
+
+
+def test_coupling_trajectories_draw_every_seed():
+    histories = {
+        seed: {"couplings": np.full((10, 2), 0.1 * seed), "total_loss": np.ones(10)}
+        for seed in (1, 2, 3)
+    }
+
+    figure = plots.plot_coupling_trajectories(
+        histories, "rabi2_ip", {"g1": 1.0, "g2": 1.0}, selected=2
+    )
+
+    assert len(figure.axes) == 2  # one panel per coupling
+    widths = [line.get_linewidth() for line in figure.axes[0].get_lines()[:3]]
+    assert widths.count(max(widths)) == 1  # only the selected seed is bold
+    with pytest.raises(ValueError, match="selected seed 7"):
+        plots.plot_coupling_trajectories(histories, "rabi2_ip", selected=7)
 
 
 def test_couplings_must_match_the_picture():
