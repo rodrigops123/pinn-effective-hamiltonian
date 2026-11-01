@@ -80,7 +80,14 @@ recorded in `meta.json`. To change an experiment, edit its YAML (or copy it unde
 uv run python scripts/make_figures.py saved_artifacts/runs/atom_fock/<timestamp>_<commit>
 ```
 
-writes, for every seed, `seed_<s>/figures/{expectations,fidelity,state_components,losses,couplings}.{pdf,png}`.
+writes, for every seed, `seed_<s>/figures/{expectations,fidelity,populations,losses,couplings}.{pdf,png}`.
+The fidelity figure shows the infidelity 1 − F on a log scale; the populations figure
+shows |⟨s,n|ψ(t)⟩|² of every occupied basis state, which, unlike the components, does
+not depend on the global phase or the frame. `--state-components` adds the heat map
+of the real and imaginary parts of every component, as a diagnostic.
+For an experiment directory it also writes `figures/couplings_all_seeds.{pdf,png}`
+next to the seeds: the coupling trajectories of every seed, with the seed of lowest
+final total loss in bold.
 Predictions are always compared with the exact solution **in the frame the model was
 trained in**. `apps/figures.ipynb` does the same interactively. In Python:
 
