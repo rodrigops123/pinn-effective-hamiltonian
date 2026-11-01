@@ -158,7 +158,19 @@ uv run python scripts/make_sweep_figure.py --prefix final --floor 2e-3
 
 It writes `saved_artifacts/figures/final_g2_sweep.{pdf,png}` and the per-seed table
 `final_sweep.json`, and refuses outputs of a dirty tree or starts whose settings differ
-in more than the seed and `coupling_init`.
+in more than the seed and `coupling_init`. `--prefix final_noise` draws the sweep with
+measurement noise; `--suffix _nseed1` (or `_nseed2`) selects the experiments with another
+noise draw, `final_noise_{rabi,jc}_w<ω>[_init005]_nseed1`.
+
+The g2 start map (`docs/studies/noise_sweep_basins.md`) plots the learned g2 against its
+initial value for every `g2basin_rabi_w<ω>_g2init<g2>` experiment, one panel per ω:
+
+```bash
+uv run python scripts/make_basin_figure.py
+```
+
+It writes `saved_artifacts/figures/g2basin_rabi.{pdf,png}` and the per-seed table
+`g2basin_rabi.json`.
 
 ## Conventions
 
@@ -214,8 +226,8 @@ configs/studies/             method studies (see docs/studies/)
 configs/reproduction/        reruns of the legacy experiments
 configs/rwa_sweep/           Rabi vs JC across g/ω, including g = ω (docs/studies/rwa_sweep.md)
 configs/final/               the sweep with 10 seeds and two g2 starts (docs/studies/final_sweep.md)
-configs/final_noise/         the final sweep with measurement noise σ = 0.01 (noise seeds 0–2 at ω = 10, 15)
-configs/g2_basins/           Rabi data at ω = 10, 15 with g2 started at 0.05–1.5
+configs/final_noise/         the final sweep with measurement noise σ = 0.01 (noise seeds 0–2 at ω = 10, 15; docs/studies/noise_sweep_basins.md)
+configs/g2_basins/           Rabi data at ω = 10, 15 with g2 started at 0.05–1.5 (docs/studies/noise_sweep_basins.md)
 docs/studies/                study reports (index in docs/studies/README.md)
 scripts/
     train.py                 train an experiment, once per seed
@@ -225,6 +237,7 @@ scripts/
     migrate_pickles.py       convert result pickles of earlier code versions
     summarize_runs.py        per-seed couplings, losses and fidelity (the study tables)
     make_sweep_figure.py     learned g2 against g/ω, one start per seed by lowest loss
+    make_basin_figure.py     learned g2 against its initial value (g2 start map)
     rwa_sweep_preparation.py field dimension, Rabi–JC difference and g2 resolution per ω
     g2_bias_diagnostics.py   loss landscape and supervised-fit diagnostics of g2
     g2_symmetry_check.py     the data are even in g2

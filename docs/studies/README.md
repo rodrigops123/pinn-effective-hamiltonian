@@ -13,6 +13,7 @@ them. In the order they build on each other:
 | [g2_start.md](g2_start.md) | What if g2 starts near 0? | A trap at every ω, from a symmetry (the data are even in g2); protocol: two starts, lowest total loss |
 | [measurement_noise.md](measurement_noise.md) | Does the result survive noisy data (σ = 0.01, about 2500 shots)? | Yes: effective model where the RWA holds, full model where it does not, two-start selection still right; the PINN filters the noise |
 | [final_sweep.md](final_sweep.md) | The paper's result: the sweep with 10 seeds and two g2 starts | JC model on every seed for g/ω ≤ 0.067, full model on every seed at g/ω = 0.2, 0.5 and on 7/10 at g = ω; at the switch, 3/10 (g/ω = 0.1) and 8/10 (0.14) full; JC-data control passed 80/80 |
+| [noise_sweep_basins.md](noise_sweep_basins.md) | Does the final sweep hold with noise (σ = 0.01), and where does the full model's basin start at the switch? | Both ends hold (JC for g/ω ≤ 0.067, full model at 0.2, 0.5; control 120/120), but noise moves the switch: ω = 10 gives JC on 30/30 although the data still resolve g2. Without noise the full model's basin at ω = 10 starts at g2 ≈ 0.75–1; at ω = 15 no start up to 1.5 reaches it |
 
 ## Conventions shared by the reports
 
