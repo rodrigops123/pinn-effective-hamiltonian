@@ -214,7 +214,7 @@ configs/studies/             method studies (see docs/studies/)
 configs/reproduction/        reruns of the legacy experiments
 configs/rwa_sweep/           Rabi vs JC across g/ω, including g = ω (docs/studies/rwa_sweep.md)
 configs/final/               the sweep with 10 seeds and two g2 starts (docs/studies/final_sweep.md)
-configs/final_noise/         the final sweep with measurement noise σ = 0.01 (final_noise_nseed{1,2}_*: more noise draws at ω = 10, 15)
+configs/final_noise/         the final sweep with measurement noise σ = 0.01 (noise seeds 0–2 at ω = 10, 15)
 configs/g2_basins/           Rabi data at ω = 10, 15 with g2 started at 0.05–1.5
 docs/studies/                study reports (index in docs/studies/README.md)
 scripts/
